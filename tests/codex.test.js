@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, chmodSync } from 'node:fs';
+import { mkdtempSync, rmSync, chmodSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CodexClient, isolatedConfig, rpcFailure } from '../src/codex.js';
@@ -18,11 +18,11 @@ test('device login and fast completed turns use the real RPC adapter with a fake
     const login=await c.connect();assert.equal(login.userCode,'TEST-0000');
     const r=await c.decide({name:'Mira'},'test-model');assert.equal(r.decision.action,'wait');assert.equal(r.usage.inputTokens,120);
     await assert.rejects(c.decide({name:'TriggerFailure'},'test-model'),/failed/);
-  }finally{c.stop();await new Promise(r=>setTimeout(r,300));rmSync(dir,{recursive:true,force:true});}
+  }finally{await c.stop();rmSync(dir,{recursive:true,force:true});}
 });
 test('official pinned Codex binary accepts isolated initialization and account/read',async()=>{
   const dir=mkdtempSync(join(tmpdir(),'codex-protocol-')),c=new CodexClient({dataDir:dir});
-  try{await c.start();assert.equal(c.status().available,true);assert.equal(c.status().connected,false);}finally{c.stop();await new Promise(r=>setTimeout(r,200));rmSync(dir,{recursive:true,force:true});}
+  try{await c.start();assert.equal(c.status().available,true);assert.equal(c.status().connected,false);}finally{await c.stop();rmSync(dir,{recursive:true,force:true});}
 });
 
 test('device-login failures give bounded actionable messages without exposing upstream secrets',()=>{
@@ -30,4 +30,41 @@ test('device-login failures give bounded actionable messages without exposing up
  assert.ok(!rpcFailure({message:'failed to request device code secret-token-do-not-echo'},'account/login/start').includes('secret-token'));
  assert.match(rpcFailure({message:'Device authentication is disabled'},'account/login/start'),/Settings → Security/);
  assert.match(rpcFailure({message:'unknown variant'},'account/login/start'),/compatibility/);
+});
+
+test('144 decisions use separate reaped workers and keep the control connection alive',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'codex-bounded-')),binary=fileURLToPath(new URL('./fake-codex.js',import.meta.url));chmodSync(binary,0o755);
+ const events=[],c=new CodexClient({dataDir:dir,binary,onDiagnostic:e=>events.push(e)});
+ try{
+  await c.start();const controlPid=c.child.pid;let active=0,maxActive=0;
+  for(let i=0;i<144;i++){
+   const r=await c.decide({name:'Mira'},'test-model');assert.equal(r.decision.action,'wait');
+   assert.equal(c.decisionWorker,null);assert.equal(c.child.pid,controlPid);assert.equal(c.status().connected,true);
+  }
+  const starts=events.filter(e=>e.event==='codex_start'&&e.role==='decision');assert.equal(starts.length,144);assert.equal(new Set(starts.map(e=>e.pid)).size,144);
+  for(const e of events.filter(e=>e.role==='decision')){if(e.event==='codex_start')active++;else if(e.event==='codex_exit'){active--;assert.equal(e.expected,true);}maxActive=Math.max(maxActive,active);}
+  assert.equal(active,0);assert.equal(maxActive,1);assert.equal(events.filter(e=>e.event==='codex_start'&&e.role==='control').length,1);
+ }finally{await c.stop();rmSync(dir,{recursive:true,force:true});}
+});
+test('worker failure preserves the owner connection and reports only safe exit fields',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'codex-exit-')),binary=fileURLToPath(new URL('./fake-codex.js',import.meta.url));chmodSync(binary,0o755);
+ const events=[],c=new CodexClient({dataDir:dir,binary,onDiagnostic:e=>events.push(e)});
+ try{
+  await c.start();await assert.rejects(c.decide({name:'CrashWorker'},'test-model'),/exit 37/);
+  assert.equal(c.decisionWorker,null);assert.equal(c.status().connected,true);assert.equal(c.status().lastWorkerExit.code,37);
+  assert.equal(c.status().lastWorkerExit.expected,false);assert.ok(!JSON.stringify(events).includes('TEST-0000'));
+  assert.equal((await c.decide({name:'Mira'},'test-model')).decision.action,'wait');assert.equal(c.status().lastError,null);
+ }finally{await c.stop();rmSync(dir,{recursive:true,force:true});}
+});
+test('shutdown kills launcher descendants, including a child that ignores SIGTERM',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'codex-tree-')),binary=fileURLToPath(new URL('./fake-codex-launcher.js',import.meta.url));chmodSync(binary,0o755);
+ const c=new CodexClient({dataDir:dir,binary});let pending;
+ try{
+  await c.start();pending=c.decide({name:'IgnoreTermination'},'test-model');pending.catch(()=>{});
+  let workerPid;
+  for(let i=0;i<200;i++){try{workerPid=Number(readFileSync(join(dir,'codex','test-worker.pid'),'utf8'));break;}catch{await new Promise(r=>setTimeout(r,10));}}
+  assert.ok(workerPid);await c.stop();await assert.rejects(pending,/stopped|closed/);assert.equal(c.decisionWorker,null);
+  let state='gone';try{state=readFileSync(`/proc/${workerPid}/status`,'utf8').match(/^State:\s+(\w)/m)?.[1];}catch{}
+  assert.ok(['gone','Z','X'].includes(state),`Descendant still running: ${state}`);
+ }finally{await c.stop();if(pending)await pending.catch(()=>{});rmSync(dir,{recursive:true,force:true});}
 });

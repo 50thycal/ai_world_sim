@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-export const APP_VERSION = '0.2.0';
+export const APP_VERSION = '0.2.1';
 export const VERSION = 'world-v2';
 export const isV2 = w => w.version === VERSION;
 export const DECISION_INTERVAL = 12; // Five-minute ticks: one decision per villager per simulated hour.

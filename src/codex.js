@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { mkdirSync, chmodSync } from 'node:fs';
+import { mkdirSync, chmodSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { APP_VERSION, DECISION_SCHEMA, validateDecision } from './world.js';
@@ -34,14 +34,27 @@ export function rpcFailure(error, method) {
   return 'Codex rejected request; check account access and CLI compatibility';
 }
 
+// Whitelisted counters only: never forward stderr, prompts, account identities or protocol bodies.
+function memoryCounters() {
+  try {
+    const bytes = Number(readFileSync('/sys/fs/cgroup/memory.current', 'utf8').trim());
+    const events = readFileSync('/sys/fs/cgroup/memory.events', 'utf8');
+    return { memoryMB: Math.round(bytes / 1_000_000), oomKills: Number(events.match(/^oom_kill (\d+)$/m)?.[1] || 0) };
+  } catch { return { memoryMB: null, oomKills: null }; }
+}
+
 export class CodexClient extends EventEmitter {
-  constructor({ dataDir, binary = resolve('node_modules/.bin/codex'), timeout = 90000 } = {}) {
+  constructor({ dataDir, binary = resolve('node_modules/.bin/codex'), timeout = 90000, worker = false, onDiagnostic = () => {} } = {}) {
     super(); this.dataDir = dataDir; this.binary = binary; this.timeout = timeout;
     this.pending = new Map(); this.seq = 0; this.child = null; this.starting = null;
     this.account = { connected: false }; this.login = null; this.lastError = null;
     this.active = null; this.modelCache = [];
+    this.worker = worker; this.onDiagnostic = onDiagnostic; this.decisionWorker = null;
+    this.stopping = null; this.closed = null; this.transport = null; this.lastWorkerExit = null;
   }
   async start() {
+    if (this.stopping) await this.stopping;
+    if (!this.child && this.transport) await this.stop();
     if (this.child && this.ready) return;
     if (this.starting) return this.starting;
     this.starting = this.#start();
@@ -58,22 +71,35 @@ export class CodexClient extends EventEmitter {
     // Deliberately do not inherit API keys, Railway tokens, owner secrets or existing agent credentials.
     const env = { PATH: process.env.PATH, HOME: home, CODEX_HOME: home, LANG: 'C.UTF-8' };
     for (const key of ['HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'SSL_CERT_FILE']) if (process.env[key]) env[key] = process.env[key];
-    const child = spawn(this.binary, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
-    this.child = child;
+    const child = spawn(this.binary, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
+    child.oomAtStart = memoryCounters().oomKills;
+    this.closed = new Promise(resolveClose => child.once('close', resolveClose));
+    this.child = child; this.transport = child;
+    child.once('close', () => { if (this.transport === child) this.transport = null; });
+    this.onDiagnostic({ event: 'codex_start', role: this.worker ? 'decision' : 'control', pid: child.pid ?? null });
+    child.stdin.on('error', () => this.#died(child, 'Codex connection closed; run paused'));
     createInterface({ input: child.stdout }).on('line', line => {
       if (line.length > 2_000_000) return this.stop();
       try { this.#message(JSON.parse(line)); } catch { /* Never log model or auth protocol contents. */ }
     });
     child.stderr.on('data', () => {}); // May contain credentials or prompts; not forwarded into platform logs.
     child.on('error', () => this.#died(child, 'Codex binary unavailable'));
-    child.on('exit', () => this.#died(child, 'Codex process stopped'));
+    child.on('exit', (code, signal) => {
+      const memory = memoryCounters();
+      const oomKillObserved = memory.oomKills !== null && child.oomAtStart !== null && memory.oomKills > child.oomAtStart;
+      const detail = oomKillObserved ? 'memory limit reached' : signal ? `signal ${signal}` : `exit ${code}`;
+      this.onDiagnostic({ event: 'codex_exit', role: this.worker ? 'decision' : 'control',
+        code, signal, expected: Boolean(child.expectedStop), oomKillObserved, memoryMB: memory.memoryMB });
+      this.#died(child, `Codex ${this.worker ? 'decision worker' : 'control process'} stopped (${detail}); run paused`);
+    });
     await this.rpc('initialize', { clientInfo: { name: 'ai_world_sim', title: 'AI World Sim', version: APP_VERSION } }, 20000);
     this.send({ method: 'initialized', params: {} }); this.ready = true;
     await this.readAccount();
+    this.onDiagnostic({ event: 'codex_ready', role: this.worker ? 'decision' : 'control', connected: this.account.connected });
   }
   #died(child, message) {
-    if (this.child && this.child !== child) return;
-    this.ready = false; this.child = null; this.lastError = message;
+    if (this.child !== child) return;
+    this.ready = false; this.child = null; if (!child.expectedStop) this.lastError = message;
     this.account = { connected: false };
     for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(new Error(message)); }
     this.pending.clear();
@@ -130,7 +156,7 @@ export class CodexClient extends EventEmitter {
     this.lastError = null; return this.login;
   }
   async disconnect() {
-    if (this.active) throw new Error('Pause and wait for the current decision first');
+    if (this.active || this.decisionWorker) throw new Error('Pause and wait for the current decision first');
     await this.start();
     if (this.login?.loginId) await this.rpc('account/login/cancel', { loginId: this.login.loginId });
     await this.rpc('account/logout'); this.login = null; this.account = { connected: false }; this.modelCache = [];
@@ -143,6 +169,18 @@ export class CodexClient extends EventEmitter {
     return this.modelCache;
   }
   async decide(observation, model) {
+    if (this.stopping) throw new Error('Codex is stopping; run paused');
+    if (this.decisionWorker || this.active) throw new Error('A villager decision is already in progress');
+    const worker = new CodexClient({ dataDir: this.dataDir, binary: this.binary, timeout: this.timeout, worker: true,
+      onDiagnostic: event => { if (event.event === 'codex_exit') this.lastWorkerExit = event; this.onDiagnostic(event); } });
+    this.decisionWorker = worker;
+    try {
+      const result = await worker.#decideOnce(observation, model);
+      this.lastError = null; return result;
+    } catch (error) { this.lastError = error.message; throw error; }
+    finally { await worker.stop(); this.decisionWorker = null; }
+  }
+  async #decideOnce(observation, model) {
     await this.start();
     if (!this.account.connected) throw new Error('Connect ChatGPT first');
     if (this.active) throw new Error('A villager decision is already in progress');
@@ -165,15 +203,33 @@ export class CodexClient extends EventEmitter {
       return { decision: validateDecision(JSON.parse(result.text)), usage: result.usage };
     } catch (e) {
       // Stop the process on uncertainty: no untracked inference may continue after a timeout.
-      this.stop(); throw e;
+      await this.stop(); throw e;
     } finally { clearTimeout(timer); done.catch(() => {}); this.active = null; }
   }
-  status() { return { available: Boolean(this.ready), ...this.account, loginPending: Boolean(this.login?.loginId), lastError: this.lastError }; }
+  status() { return { available: Boolean(this.ready), ...this.account, loginPending: Boolean(this.login?.loginId),
+    lastError: this.lastError, workerActive: Boolean(this.decisionWorker), lastWorkerExit: this.lastWorkerExit }; }
   stop() {
-    const child = this.child; this.ready = false;
-    if (child) {
-      child.kill('SIGTERM');
-      const killTimer = setTimeout(() => child.kill('SIGKILL'), 1000); killTimer.unref();
-    }
+    if (this.stopping) return this.stopping;
+    // Kill the whole POSIX process group: the npm CLI launcher can have native children.
+    const child = this.transport, closed = this.closed;
+    this.ready = false;
+    const workerStop = this.decisionWorker?.stop();
+    const stopping = (async () => {
+      if (child) {
+        child.expectedStop = true;
+        const kill = signal => {
+          try { if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, signal); else child.kill(signal); }
+          catch (error) { if (error.code !== 'ESRCH') throw error; }
+        };
+        kill('SIGTERM');
+        // Even if the launcher exits first, native descendants must be gone before resolving.
+        const killTimer = setTimeout(() => kill('SIGKILL'), 1000);
+        try { await closed; } finally { clearTimeout(killTimer); }
+      }
+      await workerStop;
+    })();
+    this.stopping = stopping;
+    stopping.finally(() => { if (this.stopping === stopping) this.stopping = null; }).catch(() => {});
+    return stopping;
   }
 }

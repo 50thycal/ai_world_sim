@@ -5,8 +5,16 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.2.0 / simulation v2
+## Current release: app v0.2.1 / simulation v2
 
+- v0.2.1 runs every inference in one disposable Codex worker. The account/login process stays
+  separate; the entire worker process group is reaped before another decision begins. This prevents
+  previous decision sessions accumulating in one long-lived inference process. It adds CLI startup
+  overhead per decision. The Railway limit remains 1 GB; real sustained post-fix memory usage still
+  requires the next live pilot/resume to verify.
+- Safe process lifecycle logs include exit status/signal, expected termination, current container
+  memory and whether its OOM-kill counter increased. Raw stderr, credentials and prompts stay private.
+- Requests and decisions record the app release alongside the existing run/rules version.
 - Eating requires hunger **40/100 or higher**. An early attempt is blocked without consuming food.
 - Each resident reviews its plan once per simulated hour: **24 decisions each, 144 total**. Reviews
   occur at 00:00 through 23:00; the final hour continues to 24:00 without further model calls.

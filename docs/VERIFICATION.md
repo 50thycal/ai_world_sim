@@ -81,3 +81,24 @@ Physical-phone layout and sign-in remain unverified; desktop browser rendering i
 - The release does not automatically start model calls or rewrite the old pilot as v2.
 
 ![App v0.2.0 with the preserved v1 pilot](v020-version-labels.jpg)
+
+## App v0.2.1 — bounded inference workers
+
+- 32 automated checks pass, including the official pinned CLI handshake and the 144-worker stress test.
+
+- The pasted 13:38–13:42 UTC container messages are deployments preceding the live v2 pilot.
+  An online HTTP container does not establish that its Codex child is alive.
+- Railway metrics observed a peak near 1 GB at the 1 GB service limit. The v2 pilot paused at
+  tick 120 / 64 requests with `Codex process stopped`; existing logs lack a child exit reason.
+  Memory pressure is strongly indicated, not a confirmed kernel OOM diagnosis for that old exit.
+- Each inference now starts a separate official Codex process with the same persisted subscription
+  home, while the owner account/login process stays separate. Entire worker process groups are
+  terminated and awaited before the next inference. No RAM limit increase or paid API fallback.
+- A fake-provider stress test completed 144 decisions with 144 distinct, reaped worker processes,
+  at most one worker at a time, and one unchanged account-control process. This is not live inference
+  or a Railway memory benchmark.
+- Tests also cover unexpected worker exit with safe diagnostics and successful subsequent recovery,
+  and killing a launcher descendant that ignores SIGTERM. The official pinned CLI initialization
+  and isolated account/read still pass without a connected account.
+- App v0.2.1 keeps world-v2 rules and preserves the paused run and its partial hourly proposals.
+  Real subscription-backed memory behavior remains to be checked after the owner resumes the pilot.

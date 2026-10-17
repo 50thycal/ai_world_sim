@@ -8,4 +8,4 @@ try{
   await c.start();
   if(c.status().connected)throw new Error('Credential isolation failed');
   console.log(JSON.stringify({handshake:'passed',accountIsolation:'passed',liveInference:'not run; owner phone sign-in required'}));
-}finally{c.stop();await new Promise(r=>setTimeout(r,200));rmSync(dir,{recursive:true,force:true});}
+}finally{await c.stop();rmSync(dir,{recursive:true,force:true});}

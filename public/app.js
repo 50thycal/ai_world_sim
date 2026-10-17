@@ -14,7 +14,7 @@ function render() {
   const w = displayed.world;
   $('mode').textContent = w.mode === 'demo' ? 'DEMO · SCRIPTED' : 'CHATGPT · LIVE DECISIONS';
   $('clock').textContent = `Day ${Math.floor(Math.max(0,w.tick-1) / 288) + 1} · ${time(w.tick)}`;
-  $('app-version').textContent = `App v${current.appVersion || '0.2.0'}`;
+  $('app-version').textContent = `App v${current.appVersion || '0.2.1'}`;
   $('run-version').textContent = `Simulation ${w.version.replace('world-','')} · Run ${w.id.slice(0,8)}`;
   $('decision-pace').textContent = w.version === 'world-v2' ? `Hourly decisions · ${Math.min(24,(w.nextDecisionTick || 0)/12)} / 24 rounds · quiet time skips ahead` : 'v1 pilot preserved · start a fresh run to use v2';
   $('world-status').textContent = replay ? 'Recorded playback' : current.busy ? `${current.pendingName || 'Village'} is thinking…` : w.running ? 'The village is living' : w.pauseReason;

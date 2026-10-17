@@ -29,7 +29,7 @@ function ownerStorage(dataDir) {
 export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), codex, intervalMs = 1200 } = {}) {
   mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   const store = new WorldStore(join(dataDir, 'village.sqlite'));
-  codex ||= new CodexClient({ dataDir, binary: process.env.CODEX_BINARY || join(root, 'node_modules/.bin/codex') });
+  codex ||= new CodexClient({ dataDir, binary: process.env.CODEX_BINARY || join(root, 'node_modules/.bin/codex'), onDiagnostic: event => console.info(JSON.stringify(event)) });
   const runner = new Runner(store, codex);
   const { owner, save: saveOwner } = ownerStorage(dataDir);
   const sign = text => createHmac('sha256', owner.signingKey).update(text).digest('hex');
@@ -136,7 +136,7 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
     if (store.world.running && !runner.busy) runner.step().catch(() => {});
   }, intervalMs); timer.unref();
   return { server, store, runner, codex, close: async () => {
-    clearInterval(timer); runner.pause(store.world.running ? 'Server stopped' : store.world.pauseReason); codex.stop();
+    clearInterval(timer); runner.pause(store.world.running ? 'Server stopped' : store.world.pauseReason); await codex.stop();
     for (let i = 0; i < 25 && runner.busy; i++) await new Promise(r => setTimeout(r, 100));
     await new Promise(resolveClose => server.listening ? server.close(resolveClose) : resolveClose());
     store.close();

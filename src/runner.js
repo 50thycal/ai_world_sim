@@ -1,4 +1,4 @@
-import { advance, assign, demoDecision, observation, isV2, decisionDue, DECISION_INTERVAL, routineOnly } from './world.js';
+import { advance, assign, demoDecision, observation, isV2, decisionDue, DECISION_INTERVAL, routineOnly, APP_VERSION } from './world.js';
 
 export class Runner {
   constructor(store, codex) { this.store = store; this.codex = codex; this.busy = false; this.generation = 0; this.pendingName = null; }
@@ -10,13 +10,13 @@ export class Runner {
     if (w.mode === 'chatgpt') {
       if (w.calls >= w.maxCalls) throw new Error('144-request pilot budget reached');
       if (!w.model) throw new Error('Choose a model for this new ChatGPT run');
-      w.calls++; this.store.save([{ kind: 'request', actor: a.name, tick: w.tick, number: w.calls, source: 'chatgpt', model: w.model }]);
+      w.calls++; this.store.save([{ kind: 'request', appVersion: APP_VERSION, actor: a.name, tick: w.tick, number: w.calls, source: 'chatgpt', model: w.model }]);
       this.pendingName = a.name;
       const result = await this.codex.decide(observation(w, a), w.model);
       decision = result.decision; usage = result.usage || {};
       w.inputTokens += usage.inputTokens || 0; w.outputTokens += usage.outputTokens || 0;
     } else decision = demoDecision(w, a);
-    return { decision, record: { kind: 'decision', tick: w.tick, actor: a.name, source: w.mode, model: w.model, decision, usage, pendingRound: true } };
+    return { decision, record: { kind: 'decision', appVersion: APP_VERSION, tick: w.tick, actor: a.name, source: w.mode, model: w.model, decision, usage, pendingRound: true } };
   }
   tick(records = []) { const events = advance(this.store.world); this.store.save([...records, ...events], true); }
   async step(force = false) {
@@ -53,14 +53,14 @@ export class Runner {
       if (this.generation !== generation) return;
       for (const [a, d] of decisions) assign(w, a, d);
       if (reviewed && isV2(w)) { w.nextDecisionTick += DECISION_INTERVAL; w.decisionRound = null; }
-      this.tick(reviewed ? [{ kind: 'round', tick: w.tick, source: w.mode, actors: decisions.map(([a]) => a.id), decisionsApplied: true }] : []);
+      this.tick(reviewed ? [{ kind: 'round', appVersion: APP_VERSION, tick: w.tick, source: w.mode, actors: decisions.map(([a]) => a.id), decisionsApplied: true }] : []);
       const fromTick = w.tick;
       while (w.tick < w.maxTicks && !decisionDue(w) && routineOnly(w)) { w.skippedTicks++; this.tick(); }
-      if (w.tick > fromTick) this.store.save([{ kind: 'time_skip', tick: w.tick, fromTick, toTick: w.tick,
+      if (w.tick > fromTick) this.store.save([{ kind: 'time_skip', appVersion: APP_VERSION, tick: w.tick, fromTick, toTick: w.tick,
         text: `Advanced ${(w.tick - fromTick) * 5} quiet minutes of idle time or routine rest.`, source: w.mode }]);
     } catch (e) {
       this.pause(e.message);
-      this.store.save([{ kind: 'failure', tick: w.tick, text: e.message, source: w.mode }], true);
+      this.store.save([{ kind: 'failure', appVersion: APP_VERSION, tick: w.tick, text: e.message, source: w.mode }], true);
       throw e;
     } finally { this.busy = false; this.pendingName = null; }
   }
