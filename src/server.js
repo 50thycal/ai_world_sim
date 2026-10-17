@@ -136,7 +136,7 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
     if (store.world.running && !runner.busy) runner.step().catch(() => {});
   }, intervalMs); timer.unref();
   return { server, store, runner, codex, close: async () => {
-    clearInterval(timer); runner.pause('Server stopped'); codex.stop();
+    clearInterval(timer); runner.pause(store.world.running ? 'Server stopped' : store.world.pauseReason); codex.stop();
     for (let i = 0; i < 25 && runner.busy; i++) await new Promise(r => setTimeout(r, 100));
     await new Promise(resolveClose => server.listening ? server.close(resolveClose) : resolveClose());
     store.close();

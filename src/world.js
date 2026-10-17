@@ -176,6 +176,12 @@ export class WorldStore {
     const wasRunning = this.world.running;
     this.world.running = false;
     if (row && wasRunning) this.world.pauseReason = 'Server restarted; resume when ready';
+    // Earlier releases replaced terminal pause labels during shutdown. Recover the recorded reason.
+    if (row && !wasRunning && this.world.pauseReason === 'Server stopped') {
+      const failure = this.db.prepare("SELECT data FROM records WHERE run=? AND kind='failure' ORDER BY id DESC LIMIT 1").get(this.world.id);
+      const last = failure ? JSON.parse(failure.data) : null;
+      if (last?.tick === this.world.tick && typeof last.text === 'string') this.world.pauseReason = last.text;
+    }
     this.save();
   }
   save(events = [], frame = false) {

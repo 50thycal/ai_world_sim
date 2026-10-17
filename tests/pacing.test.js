@@ -71,7 +71,9 @@ test('opening a saved v1 run does not change its version, rules, budget or recor
  const dir=mkdtempSync(join(tmpdir(),'village-legacy-'));const path=join(dir,'world.sqlite');let s=new WorldStore(path);
  try{
   s.world.version='world-v1';s.world.tick=164;s.world.calls=144;delete s.world.nextDecisionTick;delete s.world.decisionRound;delete s.world.skippedTicks;
-  s.save([{kind:'legacy-evidence',text:'Preserve the pilot'}],true);const before=s.export();s.close();s=new WorldStore(path);
+  s.world.pauseReason='144-request pilot budget reached';
+  s.save([{kind:'legacy-evidence',text:'Preserve the pilot'},{kind:'failure',tick:164,text:s.world.pauseReason}],true);const before=s.export();
+  s.world.pauseReason='Server stopped';s.save();s.close();s=new WorldStore(path);
   const after=s.export();assert.equal(after.world.version,'world-v1');assert.equal(after.world.calls,144);assert.equal(after.world.tick,164);
   assert.deepEqual(after.world,before.world);assert.deepEqual(after.records,before.records);assert.deepEqual(s.frame(s.frames()[0].id),before.world);assert.equal(after.world.nextDecisionTick,undefined);
  }finally{s.close();rmSync(dir,{recursive:true,force:true});}
