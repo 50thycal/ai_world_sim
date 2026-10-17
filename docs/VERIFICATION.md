@@ -21,7 +21,12 @@
   toggled map labels; loaded the first recorded moment (00:05), then returned to live (01:30).
 - No app-origin JavaScript errors observed. Browser extension metadata warnings were unrelated.
 - Screenshot: [deployed scripted demo](mvp-screenshot.jpg). This image is not evidence of AI behavior.
-- A redeploy persistence check and final owner setup form check will be recorded below.
+- Redeployed the final owner-setup build. Run `602422e6-0a6a-4ef4-8284-0e8dcac28eba`
+  survived at tick 18 with 18 frames and remained paused. No data reset occurred.
+- Deployed owner-only status reports the official Codex process available, no connected account,
+  no pending login and no adapter error. Owner-only evidence export returns world and records.
+- The final owner setup form renders with a masked setup-key field and unlock button.
+  An unused one-time owner key was prepared privately for the owner; it is absent from this repository.
 
 ## Pending owner acceptance
 
@@ -29,7 +34,8 @@
 - Confirm available model and create a fresh ChatGPT run. Advance one decision round (six requests).
 - Confirm completed decisions, provider-reported usage, actual resource changes after travel,
   pause/resume and evidence export. Check the selected account's quota/credit settings.
-- Restart the service while paused and verify both the same world and connected account survive.
+- After signing in, redeploy while paused and verify the connected account survives. World persistence
+  across redeployment has already passed; account persistence still requires a real account.
 
 No subscription inference, paid API call or model-cost benchmark has been completed by these tests.
 Physical-phone layout and sign-in remain unverified; desktop browser rendering is verified.
