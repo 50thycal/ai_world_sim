@@ -3,7 +3,7 @@ let current, displayed, previous, receivedAt = 0, selected = 'v1', showLabels = 
 const canvas = $('village'), ctx = canvas.getContext('2d');
 const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const time = tick => tick === 288 ? '24:00' : `${String(Math.floor(tick * 5 / 60) % 24).padStart(2, '0')}:${String(tick * 5 % 60).padStart(2, '0')}`;
-const active = a => a.task ? `${a.task.action === 'gather' ? 'Gathering' : a.task.action[0].toUpperCase() + a.task.action.slice(1)}${a.task.target ? ' · ' + a.task.target : ''}` : 'Between hourly decisions';
+const active = a => a.task ? `${a.task.action === 'gather' ? 'Gathering' : a.task.action[0].toUpperCase() + a.task.action.slice(1)}${a.task.target ? ' · ' + a.task.target : ''}` : displayed?.world.version === 'world-v2' ? 'Between hourly decisions' : 'Considering the day';
 async function api(path, data) {
   const r = await fetch(path, data === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
   const result = await r.json(); if (!r.ok) throw new Error(result.error || 'Request failed'); return result;

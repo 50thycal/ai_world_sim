@@ -69,3 +69,15 @@ Physical-phone layout and sign-in remain unverified; desktop browser rendering i
 - Verified legacy run IDs, rules versions, budgets, historical frames and evidence survive opening
   the new release. App and run versions are separately tested in the shipped frontend handlers.
 - Physical iPhone validation of this release and a new subscription-backed v2 pilot remain owner acceptance checks.
+
+### Live v0.2.0 deployment check
+
+- Railway reported SUCCESS. Health/state report app `0.2.0` and latest rules `world-v2`.
+- The prior live v1 run retained its ID, tick 164, 144 requests, physical state, counters and all
+  166 recorded frame IDs. The original budget-stop label was recovered from its existing failure
+  record after an older shutdown path replaced it; future shutdowns preserve terminal labels.
+- Desktop Chrome displays app v0.2.0 separately from the preserved simulation v1/run ID, and
+  instructs the owner to create a fresh run for v2. No app-origin console errors were observed.
+- The release does not automatically start model calls or rewrite the old pilot as v2.
+
+![App v0.2.0 with the preserved v1 pilot](v020-version-labels.jpg)
