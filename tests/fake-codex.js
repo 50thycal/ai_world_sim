@@ -16,6 +16,8 @@ for await(const line of readline.createInterface({input:process.stdin})){
   const threadId=m.params.threadId,obs=JSON.parse(m.params.input[0].text);
   send({id:m.id,result:{turn:{id:'turn-'+n,status:'inProgress'}}});
   if(obs.name==='IgnoreTermination'){process.on('SIGTERM',()=>{});writeFileSync(join(process.env.CODEX_HOME,'test-worker.pid'),String(process.pid));setInterval(()=>{},1000);break;}
+  if(obs.name==='TimeoutWorker'){setInterval(()=>{},1000);break;}
+  if(obs.name==='RateLimit'){send({method:'turn/completed',params:{threadId,turn:{status:'failed',error:{codexErrorInfo:'rateLimitExceeded',message:'SECRET-PROVIDER',additionalDetails:'SECRET'}}}});break;}
   if(obs.name==='CrashWorker')process.exit(37);
   if(obs.name==='TriggerFailure'){send({method:'turn/completed',params:{threadId,turn:{status:'failed'}}});break;}
   send({method:'thread/tokenUsage/updated',params:{threadId,tokenUsage:{last:{inputTokens:120,outputTokens:30}}}});

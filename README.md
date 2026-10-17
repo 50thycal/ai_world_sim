@@ -5,7 +5,7 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.2.1 / simulation v2
+## Current release: app v0.2.2 / simulation v2
 
 - v0.2.1 runs every inference in one disposable Codex worker. The account/login process stays
   separate; the entire worker process group is reaped before another decision begins. This prevents
@@ -28,6 +28,41 @@ villagers before extending the world.
   the changes; the current provider/model are preselected when the owner opens the controls.
 - Completed proposals survive a pause/restart within an hourly round. Failed/uncertain provider
   requests still consume the hard budget and pause the run; 144 successful reviews assumes no failures.
+
+## Diagnostics (v0.2.2)
+
+Uses Railway structured logs and the existing SQLite volume only: no monitoring subscription,
+new dependency, model request, automatic retry or change to village rules. A deploy restarts the server and leaves runs paused.
+
+- Every new ChatGPT request has a UUID recorded **before** inference and carried through worker
+  phases, process exit, sampled memory, result persistence and the scientific decision/failure record.
+- Worker phase events separate initialization, account discovery, thread creation, turn start,
+  inference and validation. Summaries include elapsed time, cleanup time, observation byte size,
+  token counts, and the highest **sampled** container memory value.
+- During an inference, container memory and numeric cgroup events are sampled once per second.
+  Fifteen-second heartbeats show tick, request count, partial proposals, busy/running state,
+  Node RSS and maximum event-loop delay. No shell process polling is used.
+- Known error variants and HTTP status codes come from the pinned CLI's generated schema;
+  unknown errors stay unknown. Raw provider messages, stderr, prompts, device codes and account
+  identities are excluded. Retry notifications describe the CLI's own behavior; this app adds none.
+- The owner-only `GET /api/admin/diagnostics` downloads up to 20,000 retained events across runs,
+  the active request, current resource counters, and a current-run request ledger. Ledger outcomes
+  distinguish a saved result, a recorded failure, an unresolved attempt and older unlinked records.
+  The existing owner session cookie is required; spectators receive 401.
+- Diagnostics use a **separate bounded table** in `village.sqlite`. Only diagnostic rows expire;
+  worlds, frames and scientific records are retained. Records include UTC timestamp, boot UUID,
+  app version, diagnostics schema version and Railway commit SHA when provided by Railway.
+- Startup marks a prior missing/incomplete shutdown as such; it does not claim to know the cause.
+  Diagnostic write failures increment an owner-visible counter while Railway logging continues.
+
+Limits: cgroup memory covers the entire container, including cache and other processes. A rising
+`oom_kill` counter proves a container memory kill occurred during an interval, not which process
+caused it. One-second samples can miss shorter peaks. Unsupported counters are `null`, never
+interpreted as zero. An unresolved attempt may have reached the provider and still consumes the
+request cap. No exact billing or provider-side completion claim is inferred from local telemetry.
+The newest 20,000 diagnostic events are retained globally, so older boot/request detail can expire;
+the request ledger comes from permanent scientific records. An entire-container abrupt kill can
+leave its final moments unrecorded. Missing diagnostics before this upgrade cannot be reconstructed.
 
 ## What is implemented
 
@@ -111,8 +146,9 @@ checked during implementation. Codex API surfaces evolve; upgrade deliberately a
 - This tests AI behavior under explicit rules. It does not predict human behavior or establish causal claims.
 - Same initial state; deterministic rotating resolution order. No experiment treatment/control runner yet.
 - Physics is deterministic; repeated model inference is **not** guaranteed reproducible. Replay reads recorded frames.
-- Action decisions and observations are recorded with provenance. Pause mid-round discards unapplied proposals;
-  inference requests already sent still count. A `round` record binds applied decisions at its tick.
+- Action decisions and observations are recorded with provenance. Simulation v2 saves completed mid-round
+  proposals for resume; legacy v1 discards unapplied proposals. Requests already sent still count.
+  A `round` record binds applied decisions at its tick.
 - Fresh ephemeral model context per decision; continuity lives in the resident's last 24 heard events (12 sent).
 - No hidden resource regeneration, death, crime, births, autonomous construction or personality differences yet.
 - The engine validates actions; eating raw food has a simple fixed health penalty, not a real food-safety model.

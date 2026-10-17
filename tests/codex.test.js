@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, chmodSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CodexClient, isolatedConfig, rpcFailure } from '../src/codex.js';
+import { CodexClient, isolatedConfig, rpcFailure, providerFailure } from '../src/codex.js';
 import { fileURLToPath } from 'node:url';
 
 test('villager harness disables shell, browser, apps and shared agent credentials',()=>{
@@ -67,4 +67,27 @@ test('shutdown kills launcher descendants, including a child that ignores SIGTER
   let state='gone';try{state=readFileSync(`/proc/${workerPid}/status`,'utf8').match(/^State:\s+(\w)/m)?.[1];}catch{}
   assert.ok(['gone','Z','X'].includes(state),`Descendant still running: ${state}`);
  }finally{await c.stop();if(pending)await pending.catch(()=>{});rmSync(dir,{recursive:true,force:true});}
+});
+
+
+test('diagnostics correlate worker phases, sampled peaks, timeouts and provider codes without upstream text',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'codex-diagnostics-')),binary=fileURLToPath(new URL('./fake-codex.js',import.meta.url));chmodSync(binary,0o755);
+ let sample=0;const events=[],c=new CodexClient({dataDir:dir,binary,timeout:200,sampleIntervalMs:5,
+  resourceReader:()=>({memoryMB:400+(sample++%3)*100,oomKills:0}),onDiagnostic:e=>events.push(e)});
+ const context={runId:'run-test',requestId:'request-test',actorId:'v1',tick:12,requestNumber:7};
+ try{
+  await assert.rejects(c.decide({name:'TimeoutWorker'},'test-model',context),/timed out/);
+  assert.equal(c.decisionWorker,null);const summary=events.find(e=>e.event==='decision_worker_summary');
+  assert.equal(summary.requestId,'request-test');assert.equal(summary.failureCode,'timeout');assert.equal(summary.phase,'inference');
+  assert.equal(summary.peakMemoryMB,600);assert.ok(summary.samples>3);assert.ok(summary.durationMs>=200);
+  assert.ok(events.some(e=>e.event==='codex_phase'&&e.phase==='thread_start'&&e.runId==='run-test'));
+  assert.ok(events.some(e=>e.event==='inference_sample'&&e.requestId==='request-test'));
+  await assert.rejects(c.decide({name:'RateLimit'},'test-model',context),e=>e.diagnosticCode==='rateLimitExceeded');
+  assert.ok(events.some(e=>e.providerCode==='rateLimitExceeded'));assert.ok(!JSON.stringify(events).includes('SECRET'));
+ }finally{await c.stop();rmSync(dir,{recursive:true,force:true});}
+});
+test('provider codes accept only schema-known variants and numeric HTTP status',()=>{
+ assert.deepEqual(providerFailure({httpConnectionFailed:{httpStatusCode:503,message:'SECRET'}}),{providerCode:'httpConnectionFailed',httpStatusCode:503});
+ assert.deepEqual(providerFailure('SECRET'),{providerCode:'unknown'});
+ assert.deepEqual(providerFailure({responseStreamDisconnected:{httpStatusCode:'SECRET'}}),{providerCode:'responseStreamDisconnected'});
 });

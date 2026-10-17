@@ -5,6 +5,7 @@ import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WorldStore, PLACES, VERSION, APP_VERSION, isV2 } from './world.js';
 import { CodexClient } from './codex.js';
+import { Diagnostics, heartbeat, decisionLedger } from './diagnostics.js';
 import { Runner } from './runner.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -29,8 +30,11 @@ function ownerStorage(dataDir) {
 export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), codex, intervalMs = 1200 } = {}) {
   mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   const store = new WorldStore(join(dataDir, 'village.sqlite'));
-  codex ||= new CodexClient({ dataDir, binary: process.env.CODEX_BINARY || join(root, 'node_modules/.bin/codex'), onDiagnostic: event => console.info(JSON.stringify(event)) });
-  const runner = new Runner(store, codex);
+  const diagnostics = new Diagnostics(store.db);
+  codex ||= new CodexClient({ dataDir, binary: process.env.CODEX_BINARY || join(root, 'node_modules/.bin/codex'), onDiagnostic: event => diagnostics.emit(event) });
+  const runner = new Runner(store, codex, diagnostics);
+  diagnostics.emit({ event: 'run_recovered', runId: store.world.id, worldVersion: store.world.version, tick: store.world.tick, calls: store.world.calls, pendingProposals: store.world.decisionRound?.decisions.length || 0 });
+  const stopHeartbeat = heartbeat(diagnostics, runner, store);
   const { owner, save: saveOwner } = ownerStorage(dataDir);
   const sign = text => createHmac('sha256', owner.signingKey).update(text).digest('hex');
   const isOwner = req => {
@@ -70,6 +74,10 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
           if (url.pathname === '/api/admin/status') {
             if (codex.ready) await codex.readAccount().catch(() => {});
             return json(res, 200, { ...codex.status(), login: codex.login ? { verificationUrl: codex.login.verificationUrl, userCode: codex.login.userCode, failed: codex.login.failed } : null });
+          }
+          if (url.pathname === '/api/admin/diagnostics') {
+            res.setHeader('Content-Disposition', `attachment; filename="village-diagnostics-${diagnostics.bootId}.json"`);
+            return json(res, 200, { ...diagnostics.report(20000), runId: store.world.id, activeRequest: runner.activeRequest, requests: decisionLedger(store) });
           }
           if (url.pathname === '/api/admin/models') return json(res, 200, { models: await codex.models() });
           if (url.pathname === '/api/admin/export') {
@@ -135,10 +143,11 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
   timer = setInterval(() => {
     if (store.world.running && !runner.busy) runner.step().catch(() => {});
   }, intervalMs); timer.unref();
-  return { server, store, runner, codex, close: async () => {
-    clearInterval(timer); runner.pause(store.world.running ? 'Server stopped' : store.world.pauseReason); await codex.stop();
+  return { server, store, runner, codex, diagnostics, close: async () => {
+    clearInterval(timer); stopHeartbeat(); runner.pause(store.world.running ? 'Server stopped' : store.world.pauseReason); await codex.stop();
     for (let i = 0; i < 25 && runner.busy; i++) await new Promise(r => setTimeout(r, 100));
     await new Promise(resolveClose => server.listening ? server.close(resolveClose) : resolveClose());
+    diagnostics.emit({ event: 'server_stop', runId: store.world.id, tick: store.world.tick, calls: store.world.calls, busy: runner.busy });
     store.close();
   } };
 }

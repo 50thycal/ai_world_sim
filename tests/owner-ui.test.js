@@ -62,8 +62,8 @@ test('Refresh explicitly confirms the disconnected state rather than appearing i
 });
 
 test('app and run versions remain distinct, and the pilot ends at Day 1 24:00',async()=>{
- const {element,state,render}=await fixture(async()=>undefined);state.appVersion='0.2.1';state.world.version='world-v1';render();
- assert.equal(element('app-version').textContent,'App v0.2.1');assert.match(element('run-version').textContent,/Simulation v1/);assert.match(element('decision-pace').textContent,/v1 pilot preserved/);
+ const {element,state,render}=await fixture(async()=>undefined);state.appVersion='0.2.2';state.world.version='world-v1';render();
+ assert.equal(element('app-version').textContent,'App v0.2.2');assert.match(element('run-version').textContent,/Simulation v1/);assert.match(element('decision-pace').textContent,/v1 pilot preserved/);
  state.world.version='world-v2';state.world.tick=288;state.world.nextDecisionTick=288;render();
  assert.equal(element('clock').textContent,'Day 1 · 24:00');assert.match(element('decision-pace').textContent,/24 \/ 24 rounds/);
 });
