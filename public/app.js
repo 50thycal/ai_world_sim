@@ -94,7 +94,7 @@ $('labels').onclick=()=>{showLabels=!showLabels;$('labels').textContent=showLabe
 async function poll(){if(polling)return;polling=true;try{const state=await api('/api/state');previous=displayed;current=state;receivedAt=performance.now();if(!replay)displayed=state;$('connection').textContent='Connected';render();}catch{$('connection').textContent='Reconnecting';}finally{polling=false;}}
 async function loadFrames(){try{frames=await api('/api/frames');$('timeline').max=Math.max(0,frames.length-1);if(!replay)$('timeline').value=frames.length-1;render();}catch{}}
 let replaySequence=0;
-let accountLoading=false, actionPending=false;
+let accountLoading=false, actionPending=false, pendingActions=0;
 function ownerMessage(message, failed=false){const el=$('owner-message');el.textContent=message;el.classList.toggle('error',failed);}
 
 $('timeline').oninput=async e=>{const f=frames[Number(e.target.value)];if(!f)return;const sequence=++replaySequence;try{const frame=await api('/api/frame/'+f.id);if(sequence!==replaySequence)return;replay=true;previous=null;displayed=frame;render();}catch(err){toast(err.message);}};
@@ -113,7 +113,7 @@ async function account(){
 }
 async function action(name,data={}){
   if(actionPending && name!=='pause')return;
-  actionPending=true;
+  pendingActions++; actionPending=true;
   const button=document.querySelector(name==='new'?'#new-run':name==='run'?'#play':'#'+name);
   const label=button?.textContent;
   const buttons=[...document.querySelectorAll('#owner-content button')];
@@ -126,7 +126,7 @@ async function action(name,data={}){
     await account();await poll();await loadFrames();
     if(name==='connect' && !$('device-login').hidden)$('device-login').scrollIntoView({block:'nearest',behavior:'smooth'});
   }catch(e){ownerMessage(e.message,true);if(name==='connect')$('account-status').textContent=e.message;}
-  finally{if(button)button.textContent=label;buttons.forEach(b=>b.disabled=false);actionPending=false;}
+  finally{if(button)button.textContent=label;pendingActions--;actionPending=pendingActions>0;buttons.forEach(b=>b.disabled=actionPending&&b.id!=='pause');}
 }
 $('manage').onclick=async()=>{const s=await api('/api/session');owner=s.owner;$('owner-required').hidden=owner;$('owner-content').hidden=!owner;$('owner-dialog').showModal();if(owner)account();};
 $('claim-form').onsubmit=async e=>{e.preventDefault();try{await api('/api/claim',{token:$('setup-key').value.trim()});$('setup-key').value='';owner=true;$('owner-required').hidden=true;$('owner-content').hidden=false;$('owner-message').textContent='Owner access connected on this device.';await account();}catch(err){$('owner-message').textContent=err.message;}};

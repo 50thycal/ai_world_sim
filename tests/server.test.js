@@ -25,6 +25,13 @@ test('HTTP owner claim, CSRF, read-only spectators, exports and restart persiste
     const exported=await (await fetch(base+'/api/admin/export',{headers:{cookie}})).json();assert.equal(exported.format,'ai-world-run-v1');assert.ok(!JSON.stringify(exported).includes('signingKey'));
     const frames=await (await fetch(base+'/api/frames')).json();assert.equal(frames.length,1);
     assert.equal((await (await fetch(base+'/api/frame/'+frames[0].id)).json()).world.tick,1);
+    const fresh=await post('/api/admin/new',{mode:'demo'},cookie);assert.equal(fresh.status,200);
+    const freshState=await fresh.json();assert.notEqual(freshState.world.id,state.world.id);assert.equal(freshState.world.running,false);
+    assert.equal(app.store.db.prepare('SELECT count(*) n FROM worlds').get().n,2);
+    assert.equal(app.store.db.prepare('SELECT count(*) n FROM frames WHERE run=?').get(state.world.id).n,1);
+    await post('/api/admin/run',{},cookie);
+    const blocked=await post('/api/admin/new',{mode:'demo'},cookie);assert.equal(blocked.status,400);assert.match((await blocked.json()).error,/Pause/);
+    await post('/api/admin/pause',{},cookie);
     const home=await fetch(base+'/');assert.equal(home.status,200);assert.match(home.headers.get('content-security-policy'),/frame-ancestors 'none'/);assert.match(await home.text(),/Little Commons/);
     const script=await fetch(base+'/app.js');assert.equal(script.status,200);assert.match(script.headers.get('content-type'),/javascript/);
   }finally{await app.close();rmSync(dir,{recursive:true,force:true});delete process.env.OWNER_SETUP_TOKEN;}

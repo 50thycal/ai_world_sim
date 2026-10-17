@@ -39,3 +39,19 @@
 
 No subscription inference, paid API call or model-cost benchmark has been completed by these tests.
 Physical-phone layout and sign-in remain unverified; desktop browser rendering is verified.
+
+## Owner controls repair — 2026-10-17
+
+- Actual iPhone requests reached the server: Connect returned HTTP 400, while Play and Disconnect
+  returned 200. The original error message was below the visible portion of the owner dialog.
+- Added the system CA certificate bundle to the slim runtime image. After deployment, the same
+  authenticated Connect request returned HTTP 200 with a real OpenAI device code and the expected
+  verification URL. No sign-in credentials or codes are recorded here. This verifies code issuance,
+  not completed subscription sign-in or model inference.
+- Progress/errors now appear in a sticky status panel near the dialog header; Connect shows an
+  immediate busy label, successful code issuance scrolls the code into view, and Pause remains
+  usable while a decision is pending. Stale pending device logins can be renewed.
+- 19 Node tests pass, including shipped frontend click handlers with a simulated DOM/backend:
+  delayed code issuance, visible provider error/retry, and Pause during a pending step. The HTTP
+  tests also cover fresh demo run creation, preservation of old run/frame records, and the
+  explicit pause requirement before a new run. These are not physical-phone browser tests.
