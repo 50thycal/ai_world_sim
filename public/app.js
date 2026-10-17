@@ -109,6 +109,7 @@ async function account(){
     if(s.login?.userCode){$('device-code').textContent=s.login.userCode;$('device-link').href=s.login.verificationUrl;}
     if(s.login?.failed)ownerMessage('Sign-in did not complete. Try Connect ChatGPT again.',true);
     if(s.connected&&$('model').options.length<2){const r=await api('/api/admin/models');$('model').innerHTML=r.models.map(m=>`<option value="${escape(m.id)}"${m.isDefault?' selected':''}>${escape(m.name)}</option>`).join('');}
+    return s;
   }catch(e){ownerMessage(e.message,true);}finally{accountLoading=false;}
 }
 async function action(name,data={}){
@@ -131,7 +132,12 @@ async function action(name,data={}){
 $('manage').onclick=async()=>{const s=await api('/api/session');owner=s.owner;$('owner-required').hidden=owner;$('owner-content').hidden=!owner;$('owner-dialog').showModal();if(owner)account();};
 $('claim-form').onsubmit=async e=>{e.preventDefault();try{await api('/api/claim',{token:$('setup-key').value.trim()});$('setup-key').value='';owner=true;$('owner-required').hidden=true;$('owner-content').hidden=false;$('owner-message').textContent='Owner access connected on this device.';await account();}catch(err){$('owner-message').textContent=err.message;}};
 for(const [id,name]of [['connect','connect'],['disconnect','disconnect'],['play','run'],['pause','pause'],['step','step']])$(id).onclick=()=>action(name);
-$('refresh-account').onclick=account;
+$('refresh-account').onclick=async()=>{
+  if(accountLoading||actionPending)return;
+  const button=$('refresh-account');button.disabled=true;button.textContent='Checking…';ownerMessage('Checking your ChatGPT connection…');
+  try{const s=await account();if(s)ownerMessage(s.connected?'ChatGPT is connected.':s.login?.userCode?'Sign-in is waiting for your approval using the code below.':'No ChatGPT account connected yet. Choose Connect ChatGPT.');}
+  finally{button.disabled=false;button.textContent='Refresh';}
+};
 $('new-run').onclick=()=>action('new',{mode:$('new-mode').value,model:$('model').value});
 async function init(){const params=new URLSearchParams(location.hash.slice(1));const token=params.get('setup');if(token){history.replaceState(null,'',location.pathname);try{await api('/api/claim',{token});toast('Owner access connected on this device.');owner=true;}catch(e){toast(e.message);}}await poll();await loadFrames();if(owner)$('manage').click();}
 init();requestAnimationFrame(draw);setInterval(poll,1000);setInterval(loadFrames,6000);setInterval(()=>{if(owner&&$('owner-dialog').open&&!actionPending)account();},5000);

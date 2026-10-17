@@ -53,3 +53,10 @@ test('Pause stays available during a slow step without unlocking other pending c
  await element('pause').onclick();assert.equal(element('connect').disabled,true);
  finish();await pending;assert.equal(element('connect').disabled,false);
 });
+
+test('Refresh explicitly confirms the disconnected state rather than appearing inert',async()=>{
+ const {element}=await fixture(async()=>undefined);
+ await element('refresh-account').onclick();
+ assert.match(element('owner-message').textContent,/No ChatGPT account connected/);
+ assert.equal(element('refresh-account').disabled,false);assert.equal(element('refresh-account').textContent,'Refresh');
+});

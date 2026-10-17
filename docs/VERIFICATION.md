@@ -51,7 +51,7 @@ Physical-phone layout and sign-in remain unverified; desktop browser rendering i
 - Progress/errors now appear in a sticky status panel near the dialog header; Connect shows an
   immediate busy label, successful code issuance scrolls the code into view, and Pause remains
   usable while a decision is pending. Stale pending device logins can be renewed.
-- 19 Node tests pass, including shipped frontend click handlers with a simulated DOM/backend:
-  delayed code issuance, visible provider error/retry, and Pause during a pending step. The HTTP
+- 20 Node tests pass, including shipped frontend click handlers with a simulated DOM/backend:
+  delayed code issuance, visible provider error/retry, explicit Refresh feedback, and Pause during a pending step. The HTTP
   tests also cover fresh demo run creation, preservation of old run/frame records, and the
   explicit pause requirement before a new run. These are not physical-phone browser tests.
