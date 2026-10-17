@@ -5,3 +5,5 @@
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 
 #setup-key{display:block;width:100%;padding:12px;margin:8px 0 16px;border:1px solid var(--line);border-radius:5px;background:#faf8f1;color:var(--ink)}
+
+#owner-message:empty{display:none}#owner-message{position:sticky;top:0;z-index:2;margin:8px 0;padding:12px 14px;border-radius:6px;background:#e5ebdc;border:1px solid #c3ceba;color:#27372e}#owner-message.error{background:#f7e5d9;border-color:#d4ab8d;color:#793b25}

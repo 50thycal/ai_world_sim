@@ -94,14 +94,44 @@ $('labels').onclick=()=>{showLabels=!showLabels;$('labels').textContent=showLabe
 async function poll(){if(polling)return;polling=true;try{const state=await api('/api/state');previous=displayed;current=state;receivedAt=performance.now();if(!replay)displayed=state;$('connection').textContent='Connected';render();}catch{$('connection').textContent='Reconnecting';}finally{polling=false;}}
 async function loadFrames(){try{frames=await api('/api/frames');$('timeline').max=Math.max(0,frames.length-1);if(!replay)$('timeline').value=frames.length-1;render();}catch{}}
 let replaySequence=0;
+let accountLoading=false, actionPending=false;
+function ownerMessage(message, failed=false){const el=$('owner-message');el.textContent=message;el.classList.toggle('error',failed);}
+
 $('timeline').oninput=async e=>{const f=frames[Number(e.target.value)];if(!f)return;const sequence=++replaySequence;try{const frame=await api('/api/frame/'+f.id);if(sequence!==replaySequence)return;replay=true;previous=null;displayed=frame;render();}catch(err){toast(err.message);}};
 $('return-live').onclick=()=>{replaySequence++;replay=false;previous=null;displayed=current;render();};
-async function account(){try{const s=await api('/api/admin/status');$('account-status').textContent=s.connected?`Connected to ChatGPT${s.plan?' · '+s.plan:''}`:s.available?'Ready to connect your subscription.':'Starting the private Codex connection…';$('device-login').hidden=!s.login?.userCode;if(s.login?.userCode){$('device-code').textContent=s.login.userCode;$('device-link').href=s.login.verificationUrl;}if(s.login?.failed)$('owner-message').textContent='Sign-in did not complete. Try Connect ChatGPT again.';if(s.connected&&$('model').options.length<2){const r=await api('/api/admin/models');$('model').innerHTML=r.models.map(m=>`<option value="${escape(m.id)}"${m.isDefault?' selected':''}>${escape(m.name)}</option>`).join('');}}catch(e){$('owner-message').textContent=e.message;}}
-async function action(name,data={}){const buttons=[...document.querySelectorAll('#owner-content button')];buttons.forEach(b=>b.disabled=true);$('owner-message').textContent=name==='step'?'Waiting for the village’s decisions…':'Working…';try{await api('/api/admin/'+name,data);$('owner-message').textContent=name==='connect'?'Complete sign-in in the OpenAI tab. This panel will update.':'Done.';await account();await poll();await loadFrames();}catch(e){$('owner-message').textContent=e.message;}finally{buttons.forEach(b=>b.disabled=false);}}
+async function account(){
+  if(accountLoading)return;
+  accountLoading=true;
+  try{
+    const s=await api('/api/admin/status');
+    $('account-status').textContent=s.connected?`Connected to ChatGPT${s.plan?' · '+s.plan:''}`:s.login?.userCode?'Your sign-in code is ready below.':s.lastError || (s.available?'Ready to connect your subscription.':'Starting the private Codex connection…');
+    $('device-login').hidden=!s.login?.userCode;
+    if(s.login?.userCode){$('device-code').textContent=s.login.userCode;$('device-link').href=s.login.verificationUrl;}
+    if(s.login?.failed)ownerMessage('Sign-in did not complete. Try Connect ChatGPT again.',true);
+    if(s.connected&&$('model').options.length<2){const r=await api('/api/admin/models');$('model').innerHTML=r.models.map(m=>`<option value="${escape(m.id)}"${m.isDefault?' selected':''}>${escape(m.name)}</option>`).join('');}
+  }catch(e){ownerMessage(e.message,true);}finally{accountLoading=false;}
+}
+async function action(name,data={}){
+  if(actionPending && name!=='pause')return;
+  actionPending=true;
+  const button=document.querySelector(name==='new'?'#new-run':name==='run'?'#play':'#'+name);
+  const label=button?.textContent;
+  const buttons=[...document.querySelectorAll('#owner-content button')];
+  buttons.forEach(b=>b.disabled=b.id!=='pause');
+  if(button)button.textContent=name==='connect'?'Connecting…':'Working…';
+  ownerMessage(name==='connect'?'Requesting your OpenAI sign-in code…':name==='step'?'Waiting for the village’s decisions…':'Working…');
+  try{
+    await api('/api/admin/'+name,data);
+    ownerMessage(name==='connect'?'Open OpenAI sign-in below and enter the displayed code.':name==='new'?'New run ready. Press Play village to begin.':name==='run'?'Village running. Close this panel to watch.':name==='pause'?'Village paused.':'Done.');
+    await account();await poll();await loadFrames();
+    if(name==='connect' && !$('device-login').hidden)$('device-login').scrollIntoView({block:'nearest',behavior:'smooth'});
+  }catch(e){ownerMessage(e.message,true);if(name==='connect')$('account-status').textContent=e.message;}
+  finally{if(button)button.textContent=label;buttons.forEach(b=>b.disabled=false);actionPending=false;}
+}
 $('manage').onclick=async()=>{const s=await api('/api/session');owner=s.owner;$('owner-required').hidden=owner;$('owner-content').hidden=!owner;$('owner-dialog').showModal();if(owner)account();};
 $('claim-form').onsubmit=async e=>{e.preventDefault();try{await api('/api/claim',{token:$('setup-key').value.trim()});$('setup-key').value='';owner=true;$('owner-required').hidden=true;$('owner-content').hidden=false;$('owner-message').textContent='Owner access connected on this device.';await account();}catch(err){$('owner-message').textContent=err.message;}};
 for(const [id,name]of [['connect','connect'],['disconnect','disconnect'],['play','run'],['pause','pause'],['step','step']])$(id).onclick=()=>action(name);
 $('refresh-account').onclick=account;
 $('new-run').onclick=()=>action('new',{mode:$('new-mode').value,model:$('model').value});
 async function init(){const params=new URLSearchParams(location.hash.slice(1));const token=params.get('setup');if(token){history.replaceState(null,'',location.pathname);try{await api('/api/claim',{token});toast('Owner access connected on this device.');owner=true;}catch(e){toast(e.message);}}await poll();await loadFrames();if(owner)$('manage').click();}
-init();requestAnimationFrame(draw);setInterval(poll,1000);setInterval(loadFrames,6000);setInterval(()=>{if(owner&&$('owner-dialog').open)account();},5000);
+init();requestAnimationFrame(draw);setInterval(poll,1000);setInterval(loadFrames,6000);setInterval(()=>{if(owner&&$('owner-dialog').open&&!actionPending)account();},5000);

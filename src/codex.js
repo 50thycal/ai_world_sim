@@ -22,6 +22,18 @@ export function isolatedConfig() {
   };
 }
 
+export function rpcFailure(error, method) {
+  const detail = String(error?.message || '');
+  if (method === 'account/login/start') {
+    const status = detail.match(/(?:status(?: code)?[: =]*|HTTP\s+)([45]\d\d)/i)?.[1];
+    if (/disabled|not enabled/i.test(detail)) return 'Device-code sign-in is disabled. Enable it in ChatGPT Settings → Security, then try again.';
+    if (/failed to request device code|error sending request/i.test(detail)) return `OpenAI device sign-in could not be reached${status ? ` (HTTP ${status})` : ''}. Please retry shortly.`;
+    if (/experimental|unknown variant|invalid params|unsupported/i.test(detail)) return 'This Codex version could not start device sign-in. The connection needs a compatibility update.';
+    return 'OpenAI could not start device sign-in. Please retry Connect ChatGPT.';
+  }
+  return 'Codex rejected request; check account access and CLI compatibility';
+}
+
 export class CodexClient extends EventEmitter {
   constructor({ dataDir, binary = resolve('node_modules/.bin/codex'), timeout = 90000 } = {}) {
     super(); this.dataDir = dataDir; this.binary = binary; this.timeout = timeout;
@@ -72,7 +84,7 @@ export class CodexClient extends EventEmitter {
     return new Promise((resolvePromise, reject) => {
       const id = ++this.seq;
       const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('Codex request timed out')); }, timeout);
-      this.pending.set(id, { resolve: resolvePromise, reject, timer });
+      this.pending.set(id, { resolve: resolvePromise, reject, timer, method });
       try { this.send({ id, method, params }); } catch (e) { clearTimeout(timer); this.pending.delete(id); reject(e); }
     });
   }
@@ -85,7 +97,7 @@ export class CodexClient extends EventEmitter {
     }
     if (msg.id !== undefined && this.pending.has(msg.id)) {
       const p = this.pending.get(msg.id); this.pending.delete(msg.id); clearTimeout(p.timer);
-      if (msg.error) p.reject(new Error('Codex rejected request; check account access and CLI compatibility'));
+      if (msg.error) { this.lastError = rpcFailure(msg.error, p.method); p.reject(new Error(this.lastError)); }
       else p.resolve(msg.result); return;
     }
     const p = msg.params || {};
@@ -109,11 +121,13 @@ export class CodexClient extends EventEmitter {
   }
   async connect() {
     await this.start();
-    if (this.login?.loginId) return this.login;
+    if (this.login?.loginId && Date.now() - this.login.created < 8 * 60_000) return this.login;
+    if (this.login?.loginId) await this.rpc('account/login/cancel', { loginId: this.login.loginId }).catch(() => {});
+    this.login = null;
     const r = await this.rpc('account/login/start', { type: 'chatgptDeviceCode' }, 30000);
     if (r.type !== 'chatgptDeviceCode' || !r.userCode || r.verificationUrl !== 'https://auth.openai.com/codex/device') throw new Error('Unexpected device login response');
     this.login = { verificationUrl: r.verificationUrl, userCode: r.userCode, loginId: r.loginId, created: Date.now() };
-    return this.login;
+    this.lastError = null; return this.login;
   }
   async disconnect() {
     if (this.active) throw new Error('Pause and wait for the current decision first');

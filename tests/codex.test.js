@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CodexClient, isolatedConfig } from '../src/codex.js';
+import { CodexClient, isolatedConfig, rpcFailure } from '../src/codex.js';
 import { fileURLToPath } from 'node:url';
 
 test('villager harness disables shell, browser, apps and shared agent credentials',()=>{
@@ -23,4 +23,11 @@ test('device login and fast completed turns use the real RPC adapter with a fake
 test('official pinned Codex binary accepts isolated initialization and account/read',async()=>{
   const dir=mkdtempSync(join(tmpdir(),'codex-protocol-')),c=new CodexClient({dataDir:dir});
   try{await c.start();assert.equal(c.status().available,true);assert.equal(c.status().connected,false);}finally{c.stop();await new Promise(r=>setTimeout(r,200));rmSync(dir,{recursive:true,force:true});}
+});
+
+test('device-login failures give bounded actionable messages without exposing upstream secrets',()=>{
+ assert.match(rpcFailure({message:'failed to request device code: HTTP 403 secret-token-do-not-echo'},'account/login/start'),/HTTP 403/);
+ assert.ok(!rpcFailure({message:'failed to request device code secret-token-do-not-echo'},'account/login/start').includes('secret-token'));
+ assert.match(rpcFailure({message:'Device authentication is disabled'},'account/login/start'),/Settings → Security/);
+ assert.match(rpcFailure({message:'unknown variant'},'account/login/start'),/compatibility/);
 });
