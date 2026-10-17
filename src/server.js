@@ -18,6 +18,11 @@ function ownerStorage(dataDir) {
     setupHash: hash(process.env.OWNER_SETUP_TOKEN || randomBytes(32).toString('hex')), claimed: false,
   };
   const save = () => { writeFileSync(path + '.tmp', JSON.stringify(owner), { mode: 0o600 }); renameSync(path + '.tmp', path); };
+  // Explicit environment-token rotation restores access without replacing worlds or sessions.
+  const configuredHash = process.env.OWNER_SETUP_TOKEN ? hash(process.env.OWNER_SETUP_TOKEN) : null;
+  if (configuredHash && owner.envSetupHash !== configuredHash) {
+    owner.setupHash = configuredHash; owner.envSetupHash = configuredHash; owner.claimed = false;
+  }
   save(); return { owner, save };
 }
 

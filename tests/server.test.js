@@ -29,3 +29,18 @@ test('HTTP owner claim, CSRF, read-only spectators, exports and restart persiste
     const script=await fetch(base+'/app.js');assert.equal(script.status,200);assert.match(script.headers.get('content-type'),/javascript/);
   }finally{await app.close();rmSync(dir,{recursive:true,force:true});delete process.env.OWNER_SETUP_TOKEN;}
 });
+
+ test('unchanged setup token stays consumed after restart; explicit rotation restores access and preserves the run', async () => {
+  const dir=mkdtempSync(join(tmpdir(),'world-recovery-'));
+  const fake={ready:false,status:()=>({connected:false}),stop(){}};
+  let app;
+  const open=async()=>{app=createApp({dataDir:dir,codex:fake,intervalMs:100000});await new Promise(r=>app.server.listen(0,'127.0.0.1',r));return `http://127.0.0.1:${app.server.address().port}`;};
+  const claim=(base,token)=>fetch(base+'/api/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
+  try {
+    process.env.OWNER_SETUP_TOKEN='initial-test-key';let base=await open();const id=app.store.world.id;
+    assert.equal((await claim(base,'initial-test-key')).status,200);await app.close();
+    base=await open();assert.equal((await claim(base,'initial-test-key')).status,403);await app.close();
+    process.env.OWNER_SETUP_TOKEN='rotated-test-key';base=await open();assert.equal(app.store.world.id,id);
+    assert.equal((await claim(base,'initial-test-key')).status,403);assert.equal((await claim(base,'rotated-test-key')).status,200);
+  } finally {if(app)await app.close();rmSync(dir,{recursive:true,force:true});delete process.env.OWNER_SETUP_TOKEN;}
+});

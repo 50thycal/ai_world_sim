@@ -50,15 +50,17 @@ Use the committed Dockerfile. Node 24 and the pinned Codex binary are installed 
 3. Set `DATA_DIR=/data`, `NODE_ENV=production`, `PORT=8080`.
 4. Set a randomly generated, private `OWNER_SETUP_TOKEN` **before the first startup**.
 5. Healthcheck `/health`, one replica, no deployment overlap when attaching the same SQLite volume.
-6. Open `https://YOUR-DOMAIN/#setup=YOUR-ONE-TIME-TOKEN` privately.
+6. Open the app, choose **Owner controls**, and paste the one-time setup key. Private `#setup=` links also work.
 
 The app persists `village.sqlite`, owner access state and a **separate** Codex credential directory
 on the volume. Do not export the entire volume into a public backup. JSON evidence exports contain no
 owner or Codex credentials. Never connect the existing trading databases or reuse their service credentials.
-Changes to `OWNER_SETUP_TOKEN` do not reset an already initialized owner file. To recover owner access,
-stop the service, run `scripts/owner-link.js` against the mounted data directory through a private
-operator shell, then restart; existing owner sessions continue until expiry. To invalidate them as well,
-rotate `signingKey` in the owner file offline. Back up retained evidence before volume maintenance.
+To recover owner access, rotate `OWNER_SETUP_TOKEN` to a new random private value in Railway
+and redeploy. The new value becomes a one-time setup key on startup; an unchanged value never
+reopens a consumed key. Existing owner sessions remain valid. Alternatively, stop the service and
+run `scripts/owner-link.js` against the mounted data directory through a private operator shell.
+To invalidate existing sessions too, rotate `signingKey` in the owner file offline. Back up retained
+evidence before volume maintenance.
 
 Railway resources are usage billed in addition to whatever included credit remains. No GPU is required.
 Begin with 1 CPU / 1 GB cap and measure real memory before reducing it. The app never automatically
@@ -111,3 +113,10 @@ Future integrations should be evaluated and credited separately.
 `public/`: original observer UI. `tests/`: physics, privacy, persistence, HTTP and protocol checks.
 
 MIT licensed. Codex and other dependencies retain their own licenses.
+
+## MVP preview
+
+![Little Commons scripted demo](docs/mvp-screenshot.jpg)
+
+See [verification notes](docs/VERIFICATION.md) for the distinction between automated tests,
+hands-on demo checks and pending live subscription acceptance.
