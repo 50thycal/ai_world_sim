@@ -4,6 +4,23 @@ Six residents in an observable village: gather food and wood, walk to the hearth
 share meals and talk within hearing range. A small Railway-first MVP to test subscription-backed
 villagers before extending the world.
 
+
+## Current release: app v0.2.0 / simulation v2
+
+- Eating requires hunger **40/100 or higher**. An early attempt is blocked without consuming food.
+- Each resident reviews its plan once per simulated hour: **24 decisions each, 144 total**. Reviews
+  occur at 00:00 through 23:00; the final hour continues to 24:00 without further model calls.
+- `continue` retains work in progress. Repeating the same action/target also preserves progress;
+  choosing a different action changes the plan. Hourly observations include the resident's current task.
+- When everyone is idle, waiting, or resting at the lodge, the server advances quiet time to the
+  next hourly review. Every skipped five-minute tick still updates needs, records events, and saves a frame.
+- Rest restores energy gradually and ends early at full energy.
+- The app shows its release version separately from the active/replayed run's rules version.
+  Existing v1 pilots keep their original rules and evidence. **Create a new v2 paused run** to try
+  the changes; the current provider/model are preselected when the owner opens the controls.
+- Completed proposals survive a pause/restart within an hourly round. Failed/uncertain provider
+  requests still consume the hard budget and pause the run; 144 successful reviews assumes no failures.
+
 ## What is implemented
 
 - Original browser Canvas world and responsive phone/desktop observer, villager inspection, event journal.
@@ -16,9 +33,10 @@ villagers before extending the world.
 - One-time owner link, HttpOnly owner cookie, same-origin mutation checks, read-only spectator API.
 - Restart always pauses. An inference error pauses time, records a failure and cannot turn into a demo decision.
 
-**Not yet validated:** a real owner subscription inference, account-specific quota/eligibility,
-long-running cost/reliability, and physical-iPhone interaction. Tests using Codex without an account
-verify the real protocol handshake, not access to a model. See `docs/VERIFICATION.md` for dated results.
+**Live v1 pilot observed:** ChatGPT subscription, 144 requests, 139 completed actions and a budget pause
+at 13:40 simulated time. v2 fixes are tested separately; a live v2 pilot, long-running costs/reliability
+and physical-iPhone acceptance remain unverified. Tests using Codex without an account verify only
+the protocol handshake. See `docs/VERIFICATION.md` for dated evidence.
 
 ## Local development
 

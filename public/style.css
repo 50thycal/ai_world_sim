@@ -7,3 +7,5 @@
 #setup-key{display:block;width:100%;padding:12px;margin:8px 0 16px;border:1px solid var(--line);border-radius:5px;background:#faf8f1;color:var(--ink)}
 
 #owner-message:empty{display:none}#owner-message{position:sticky;top:0;z-index:2;margin:8px 0;padding:12px 14px;border-radius:6px;background:#e5ebdc;border:1px solid #c3ceba;color:#27372e}#owner-message.error{background:#f7e5d9;border-color:#d4ab8d;color:#793b25}
+
+.release-strip{display:flex;gap:10px 22px;flex-wrap:wrap;padding:17px 0;border-bottom:1px solid var(--line);font-size:10px;letter-spacing:.4px;color:var(--muted)}#app-version{font-weight:700;color:var(--green)}#decision-pace{margin-left:auto}@media(max-width:600px){#decision-pace{margin-left:0;width:100%}.release-strip{font-size:9px;padding:13px 0}}

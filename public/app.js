@@ -1,9 +1,9 @@
 const $ = id => document.getElementById(id);
-let current, displayed, previous, receivedAt = 0, selected = 'v1', showLabels = true, replay = false, frames = [], owner = false, polling = false;
+let current, displayed, previous, receivedAt = 0, selected = 'v1', showLabels = true, replay = false, frames = [], owner = false, polling = false, defaultsApplied = false;
 const canvas = $('village'), ctx = canvas.getContext('2d');
 const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const time = tick => `${String(Math.floor(tick * 5 / 60) % 24).padStart(2, '0')}:${String(tick * 5 % 60).padStart(2, '0')}`;
-const active = a => a.task ? `${a.task.action === 'gather' ? 'Gathering' : a.task.action[0].toUpperCase() + a.task.action.slice(1)}${a.task.target ? ' · ' + a.task.target : ''}` : 'Considering the day';
+const time = tick => tick === 288 ? '24:00' : `${String(Math.floor(tick * 5 / 60) % 24).padStart(2, '0')}:${String(tick * 5 % 60).padStart(2, '0')}`;
+const active = a => a.task ? `${a.task.action === 'gather' ? 'Gathering' : a.task.action[0].toUpperCase() + a.task.action.slice(1)}${a.task.target ? ' · ' + a.task.target : ''}` : 'Between hourly decisions';
 async function api(path, data) {
   const r = await fetch(path, data === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
   const result = await r.json(); if (!r.ok) throw new Error(result.error || 'Request failed'); return result;
@@ -13,7 +13,10 @@ function render() {
   if (!displayed) return;
   const w = displayed.world;
   $('mode').textContent = w.mode === 'demo' ? 'DEMO · SCRIPTED' : 'CHATGPT · LIVE DECISIONS';
-  $('clock').textContent = `Day ${Math.floor(w.tick / 288) + 1} · ${time(w.tick)}`;
+  $('clock').textContent = `Day ${Math.floor(Math.max(0,w.tick-1) / 288) + 1} · ${time(w.tick)}`;
+  $('app-version').textContent = `App v${current.appVersion || '0.2.0'}`;
+  $('run-version').textContent = `Simulation ${w.version.replace('world-','')} · Run ${w.id.slice(0,8)}`;
+  $('decision-pace').textContent = w.version === 'world-v2' ? `Hourly decisions · ${Math.min(24,(w.nextDecisionTick || 0)/12)} / 24 rounds · quiet time skips ahead` : 'v1 pilot preserved · start a fresh run to use v2';
   $('world-status').textContent = replay ? 'Recorded playback' : current.busy ? `${current.pendingName || 'Village'} is thinking…` : w.running ? 'The village is living' : w.pauseReason;
   $('pantry').innerHTML = `${w.pantry} <em>meals</em>`;
   $('cooked').textContent = w.mealsCooked; $('shared').textContent = w.shares;
@@ -108,7 +111,7 @@ async function account(){
     $('device-login').hidden=!s.login?.userCode;
     if(s.login?.userCode){$('device-code').textContent=s.login.userCode;$('device-link').href=s.login.verificationUrl;}
     if(s.login?.failed)ownerMessage('Sign-in did not complete. Try Connect ChatGPT again.',true);
-    if(s.connected&&$('model').options.length<2){const r=await api('/api/admin/models');$('model').innerHTML=r.models.map(m=>`<option value="${escape(m.id)}"${m.isDefault?' selected':''}>${escape(m.name)}</option>`).join('');}
+    if(s.connected&&$('model').options.length<2){const r=await api('/api/admin/models');$('model').innerHTML=r.models.map(m=>`<option value="${escape(m.id)}"${m.id===(current?.world.model || r.models.find(x=>x.isDefault)?.id)?' selected':''}>${escape(m.name)}</option>`).join('');}
     return s;
   }catch(e){ownerMessage(e.message,true);}finally{accountLoading=false;}
 }
@@ -129,7 +132,7 @@ async function action(name,data={}){
   }catch(e){ownerMessage(e.message,true);if(name==='connect')$('account-status').textContent=e.message;}
   finally{if(button)button.textContent=label;pendingActions--;actionPending=pendingActions>0;buttons.forEach(b=>b.disabled=actionPending&&b.id!=='pause');}
 }
-$('manage').onclick=async()=>{const s=await api('/api/session');owner=s.owner;$('owner-required').hidden=owner;$('owner-content').hidden=!owner;$('owner-dialog').showModal();if(owner)account();};
+$('manage').onclick=async()=>{const s=await api('/api/session');owner=s.owner;$('owner-required').hidden=owner;$('owner-content').hidden=!owner;$('owner-dialog').showModal();if(owner){if(!defaultsApplied&&current){$('new-mode').value=current.world.mode;defaultsApplied=true;}account();}};
 $('claim-form').onsubmit=async e=>{e.preventDefault();try{await api('/api/claim',{token:$('setup-key').value.trim()});$('setup-key').value='';owner=true;$('owner-required').hidden=true;$('owner-content').hidden=false;$('owner-message').textContent='Owner access connected on this device.';await account();}catch(err){$('owner-message').textContent=err.message;}};
 for(const [id,name]of [['connect','connect'],['disconnect','disconnect'],['play','run'],['pause','pause'],['step','step']])$(id).onclick=()=>action(name);
 $('refresh-account').onclick=async()=>{

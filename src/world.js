@@ -3,7 +3,14 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-export const VERSION = 'world-v1';
+export const APP_VERSION = '0.2.0';
+export const VERSION = 'world-v2';
+export const isV2 = w => w.version === VERSION;
+export const DECISION_INTERVAL = 12; // Five-minute ticks: one decision per villager per simulated hour.
+export const MIN_EAT_HUNGER = 40;
+export const decisionDue = w => isV2(w) && w.tick >= w.nextDecisionTick && w.tick < w.maxTicks;
+export const routineOnly = w => isV2(w) && w.agents.every(a => !a.task || a.task.action === 'wait' ||
+  (a.task.action === 'rest' && a.x === PLACES.shelter.x && a.y === PLACES.shelter.y));
 export const PLACES = {
   orchard: { x: 3, y: 4, name: 'Wild orchard', kind: 'food' },
   forest: { x: 13, y: 3, name: 'Pine woods', kind: 'wood' },
@@ -12,7 +19,7 @@ export const PLACES = {
   shelter: { x: 4, y: 12, name: 'Sleeping lodge', kind: 'rest' },
   square: { x: 8, y: 12, name: 'Meeting green', kind: 'talk' },
 };
-export const ACTIONS = ['gather', 'cook', 'eat', 'rest', 'share', 'talk', 'wait'];
+export const ACTIONS = ['gather', 'cook', 'eat', 'rest', 'share', 'talk', 'wait', 'continue'];
 export const DECISION_SCHEMA = {
   type: 'object', additionalProperties: false,
   properties: {
@@ -29,6 +36,7 @@ export function newWorld(mode = 'demo', model = null) {
   return {
     version: VERSION, id: randomUUID(), created: new Date().toISOString(),
     mode, model, running: false, pauseReason: 'Ready for an owner to start', tick: 0,
+    nextDecisionTick: 0, decisionRound: null, skippedTicks: 0,
     maxTicks: 288, maxCalls: 144, calls: 0, inputTokens: 0, outputTokens: 0,
     completedActions: 0, shares: 0, mealsCooked: 0,
     resources: { food: 70, wood: 50 }, pantry: 8,
@@ -55,18 +63,20 @@ export function observation(w, a) {
   return {
     name: a.name, minute: w.tick * 5, day: Math.floor(w.tick / 288) + 1,
     position: { x: a.x, y: a.y }, hunger: a.hunger, energy: a.energy, health: a.health,
+    ...(isV2(w) ? { currentTask: clone(a.task), nextReviewMinutes: 60, decisionNumber: Math.floor(w.tick / DECISION_INTERVAL) + 1 } : {}),
     inventory: clone(a.inventory), memories: a.memories.slice(-12), places: PLACES,
     nearbyVillagers: w.agents.filter(b => b.id !== a.id && dist(a, b) <= 4)
       .map(b => ({ id: b.id, name: b.name, x: b.x, y: b.y })),
     pantryMeals: dist(a, PLACES.pantry) <= 3 ? w.pantry : 'not currently visible',
     localResources: Object.fromEntries(['orchard', 'forest'].filter(p => dist(a, PLACES[p]) <= 3)
       .map(p => [p, w.resources[PLACES[p].kind]])),
-    rules: 'Choose one action. gather at orchard gives raw food; forest gives wood. cook at hearth consumes 1 raw + 1 wood for 2 meals. eat uses your meal, then pantry if adjacent, then raw food. Raw food reduces hunger but costs health. rest restores energy at shelter. share at pantry deposits 1 meal. talk is heard within 4 tiles; square is a meeting place. Travel and work take time. No death in this pilot. Your goal is to live through the day; relationships and cooperation are your choices.',
+    rules: (isV2(w) ? 'Hunger 0 means full; 100 means starving. Hunger rises 5.4 per hour. Eating is blocked below hunger 40 and does not consume food. A cooked meal reduces hunger by 40. You get one decision each hour, 24 per day. Choose continue to finish your current task, or choose a different action to change plans. Repeating the same action/target also continues existing work without resetting travel or progress. Finished work waits until the next hourly review. Rest at the lodge restores 5 energy per five-minute tick, up to 40 per rest, and stops early when full. ' : '') + 'Choose one action. gather at orchard gives raw food; forest gives wood. cook at hearth consumes 1 raw + 1 wood for 2 meals. eat uses your meal, then pantry if adjacent, then raw food. Raw food reduces hunger but costs health. rest restores energy at shelter. share at pantry deposits 1 meal. talk is heard within 4 tiles; square is a meeting place. Travel and work take time. No death in this pilot. Your goal is to live through the day; relationships and cooperation are your choices.',
   };
 }
 
 export function demoDecision(w, a) {
   let action, target = 'none', reason;
+  if (isV2(w) && a.task) return { action: 'continue', target: 'none', reason: 'Finish my current work.', message: '' };
   if (a.hunger > 50 && (a.inventory.meal || w.pantry > 0)) {
     action = 'eat'; target = a.inventory.meal ? 'none' : 'pantry'; reason = 'Time for a meal.';
   } else if (a.energy < 35) { action = 'rest'; target = 'shelter'; reason = 'I need a good rest.';
@@ -82,8 +92,15 @@ export function assign(w, a, decision) {
   const d = validateDecision(decision);
   const required = { cook: 'hearth', share: 'pantry', rest: 'shelter' };
   const target = required[d.action] || (d.target === 'none' ? null : d.target);
-  a.task = { ...d, target, work: d.action === 'rest' ? 8 : 3 };
   a.lastReason = d.reason;
+  if (isV2(w) && d.action === 'continue') {
+    if (!a.task) a.task = { ...d, action: 'wait', target: null, work: 1 };
+    return;
+  }
+  if (isV2(w) && a.task?.action === d.action && a.task.target === target) {
+    a.task.reason = d.reason; a.task.message = d.message; return;
+  }
+  a.task = { ...d, target, work: d.action === 'rest' ? 8 : 3 };
 }
 
 export function advance(w) {
@@ -106,6 +123,10 @@ export function advance(w) {
       if (a.x !== goal.x) a.x += Math.sign(goal.x - a.x); else a.y += Math.sign(goal.y - a.y);
       a.energy = Math.max(0, a.energy - 0.3); continue;
     }
+    if (isV2(w) && t.action === 'rest') {
+      a.energy = Math.min(100, a.energy + 5);
+      if (a.energy === 100) t.work = 1;
+    }
     if (--t.work > 0) continue;
     let text, failed = false;
     const bag = a.inventory;
@@ -121,11 +142,12 @@ export function advance(w) {
         bag.raw--; bag.wood--; bag.meal += 2; a.energy = Math.max(0, a.energy - 4);
         w.mealsCooked += 2; text = 'cooked two safe meals at the hearth.'; break;
       case 'eat':
+        if (isV2(w) && a.hunger < MIN_EAT_HUNGER) { text = 'was not hungry enough to eat (needs hunger 40); food was saved.'; failed = true; break; }
         if (bag.meal) { bag.meal--; a.hunger = Math.max(0, a.hunger - 40); text = 'ate a cooked meal.'; }
         else if (dist(a, PLACES.pantry) <= 1 && w.pantry) { w.pantry--; a.hunger = Math.max(0, a.hunger - 40); text = 'ate a meal from the pantry.'; }
         else if (bag.raw) { bag.raw--; a.hunger = Math.max(0, a.hunger - 15); a.health = Math.max(1, a.health - 8); text = 'ate raw food and lost health.'; }
         else { text = 'could not eat: no food within reach.'; failed = true; } break;
-      case 'rest': a.energy = Math.min(100, a.energy + 40); text = 'rested at the sleeping lodge.'; break;
+      case 'rest': if (!isV2(w)) a.energy = Math.min(100, a.energy + 40); text = 'rested at the sleeping lodge.'; break;
       case 'share':
         if (!bag.meal) { text = 'had no cooked meal to share.'; failed = true; break; }
         bag.meal--; w.pantry++; w.shares++; text = 'left a meal in the common pantry.'; break;
@@ -151,8 +173,9 @@ export class WorldStore {
       CREATE INDEX IF NOT EXISTS frames_run ON frames(run,id);`);
     const row = this.db.prepare('SELECT state FROM worlds ORDER BY updated DESC LIMIT 1').get();
     this.world = row ? JSON.parse(row.state) : newWorld();
+    const wasRunning = this.world.running;
     this.world.running = false;
-    if (row) this.world.pauseReason = 'Server restarted; resume when ready';
+    if (row && wasRunning) this.world.pauseReason = 'Server restarted; resume when ready';
     this.save();
   }
   save(events = [], frame = false) {

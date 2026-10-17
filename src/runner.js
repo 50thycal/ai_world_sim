@@ -1,10 +1,24 @@
-import { advance, assign, demoDecision, observation } from './world.js';
+import { advance, assign, demoDecision, observation, isV2, decisionDue, DECISION_INTERVAL, routineOnly } from './world.js';
 
 export class Runner {
   constructor(store, codex) { this.store = store; this.codex = codex; this.busy = false; this.generation = 0; this.pendingName = null; }
   pause(reason = 'Paused by owner') {
     this.generation++; this.store.world.running = false; this.store.world.pauseReason = reason; this.store.save();
   }
+  async proposal(w, a) {
+    let decision, usage = {};
+    if (w.mode === 'chatgpt') {
+      if (w.calls >= w.maxCalls) throw new Error('144-request pilot budget reached');
+      if (!w.model) throw new Error('Choose a model for this new ChatGPT run');
+      w.calls++; this.store.save([{ kind: 'request', actor: a.name, tick: w.tick, number: w.calls, source: 'chatgpt', model: w.model }]);
+      this.pendingName = a.name;
+      const result = await this.codex.decide(observation(w, a), w.model);
+      decision = result.decision; usage = result.usage || {};
+      w.inputTokens += usage.inputTokens || 0; w.outputTokens += usage.outputTokens || 0;
+    } else decision = demoDecision(w, a);
+    return { decision, record: { kind: 'decision', tick: w.tick, actor: a.name, source: w.mode, model: w.model, decision, usage, pendingRound: true } };
+  }
+  tick(records = []) { const events = advance(this.store.world); this.store.save([...records, ...events], true); }
   async step(force = false) {
     if (this.busy) throw new Error('A decision round is already in progress');
     const w = this.store.world;
@@ -12,27 +26,38 @@ export class Runner {
     if (w.tick >= w.maxTicks) throw new Error('Pilot complete. Start a new run.');
     this.busy = true; const generation = this.generation;
     try {
-      // Every villager in a decision round sees the same frozen world. Resolve only after all answers.
-      const due = w.agents.filter(a => !a.task), decisions = [];
-      for (const a of due) {
-        let decision, usage = {};
-        if (w.mode === 'chatgpt') {
-          if (w.calls >= w.maxCalls) throw new Error('144-request pilot budget reached');
-          if (!w.model) throw new Error('Choose a model for this new ChatGPT run');
-          w.calls++; this.store.save([{ kind: 'request', actor: a.name, tick: w.tick, number: w.calls, source: 'chatgpt', model: w.model }]);
-          this.pendingName = a.name;
-          const result = await this.codex.decide(observation(w, a), w.model);
-          decision = result.decision; usage = result.usage;
-          w.inputTokens += usage.inputTokens || 0; w.outputTokens += usage.outputTokens || 0;
-        } else decision = demoDecision(w, a);
-        const record = { kind: 'decision', tick: w.tick, actor: a.name, source: w.mode, model: w.model, decision, usage, pendingRound: true };
-        this.store.save([record]); decisions.push([a, decision]);
-        if (this.generation !== generation) return;
+      let decisions = [], reviewed = false;
+      // All proposals see the same frozen physical world. Apply only after the complete round.
+      if (isV2(w)) {
+        if (decisionDue(w)) {
+          reviewed = true;
+          w.decisionRound ||= { tick: w.nextDecisionTick, decisions: [] };
+          for (const a of w.agents) {
+            if (w.decisionRound.decisions.some(d => d.actorId === a.id)) continue;
+            const { decision, record } = await this.proposal(w, a);
+            w.decisionRound.decisions.push({ actorId: a.id, decision });
+            // A pause/restart preserves completed proposals; resuming does not buy them again.
+            this.store.save([record]);
+            if (this.generation !== generation) return;
+          }
+          decisions = w.decisionRound.decisions.map(d => [w.agents.find(a => a.id === d.actorId), d.decision]);
+        }
+      } else {
+        reviewed = true;
+        for (const a of w.agents.filter(a => !a.task)) {
+          const { decision, record } = await this.proposal(w, a);
+          this.store.save([record]); decisions.push([a, decision]);
+          if (this.generation !== generation) return;
+        }
       }
       if (this.generation !== generation) return;
       for (const [a, d] of decisions) assign(w, a, d);
-      const events = advance(w);
-      this.store.save([{ kind: 'round', tick: w.tick - 1, source: w.mode, actors: decisions.map(([a]) => a.id), decisionsApplied: true }, ...events], true);
+      if (reviewed && isV2(w)) { w.nextDecisionTick += DECISION_INTERVAL; w.decisionRound = null; }
+      this.tick(reviewed ? [{ kind: 'round', tick: w.tick, source: w.mode, actors: decisions.map(([a]) => a.id), decisionsApplied: true }] : []);
+      const fromTick = w.tick;
+      while (w.tick < w.maxTicks && !decisionDue(w) && routineOnly(w)) { w.skippedTicks++; this.tick(); }
+      if (w.tick > fromTick) this.store.save([{ kind: 'time_skip', tick: w.tick, fromTick, toTick: w.tick,
+        text: `Advanced ${(w.tick - fromTick) * 5} quiet minutes of idle time or routine rest.`, source: w.mode }]);
     } catch (e) {
       this.pause(e.message);
       this.store.save([{ kind: 'failure', tick: w.tick, text: e.message, source: w.mode }], true);

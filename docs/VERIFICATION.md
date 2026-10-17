@@ -55,3 +55,17 @@ Physical-phone layout and sign-in remain unverified; desktop browser rendering i
   delayed code issuance, visible provider error/retry, explicit Refresh feedback, and Pause during a pending step. The HTTP
   tests also cover fresh demo run creation, preservation of old run/frame records, and the
   explicit pause requirement before a new run. These are not physical-phone browser tests.
+
+## App v0.2.0 / simulation v2
+
+- Observed the real v1 subscription pilot: 144 requests, 139 completed actions, 60 meals cooked,
+  one sharing action, stopped at tick 164 by the original budget cap. Live v1 inference is confirmed.
+- 29 automated checks pass for the v2 release, including a full hourly scripted-demo day and API version metadata.
+
+- New deterministic fake-provider tests cover exactly six requests at each hourly boundary,
+  144 total, no premature budget pause, and completion at tick 288 (24:00). This is not a live-model benchmark.
+- Covered low-hunger food conservation, legacy v1 eating behavior, progressive/early-ending rest,
+  long-journey continuation, quiet-time skipping, and partial-round restart without duplicate requests.
+- Verified legacy run IDs, rules versions, budgets, historical frames and evidence survive opening
+  the new release. App and run versions are separately tested in the shipped frontend handlers.
+- Physical iPhone validation of this release and a new subscription-backed v2 pilot remain owner acceptance checks.

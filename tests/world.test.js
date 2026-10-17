@@ -19,7 +19,7 @@ test('sharing and pantry eating conserve meals and require proximity', () => {
   const w = newWorld(), a = w.agents[0], start = w.pantry;
   assign(w, a, d('share', 'pantry')); finish(w);
   assert.equal(w.pantry, start + 1); assert.equal(a.inventory.meal, 0); assert.equal(w.shares, 1);
-  assign(w, a, d('eat', 'pantry')); finish(w); assert.equal(w.pantry, start);
+  a.hunger = 70; assign(w, a, d('eat', 'pantry')); finish(w); assert.equal(w.pantry, start);
 });
 test('raw food carries an explicit health cost', () => {
   const w = newWorld(), a = w.agents[0]; a.inventory.meal = 0; a.hunger = 70;

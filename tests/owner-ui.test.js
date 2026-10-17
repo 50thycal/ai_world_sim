@@ -24,7 +24,7 @@ async function fixture(backend){
   fetch:async(path,options)=>{const response=await backend(path,options);const result=response??{data:path==='/api/state'?state:path==='/api/frames'?[]:{connected:false,available:true}};return{ok:result.ok!==false,json:async()=>result.data};},
   location:{hash:'',pathname:'/'},history:{replaceState(){}},URLSearchParams,performance:{now:()=>0},setInterval(){},setTimeout(){},requestAnimationFrame(){}};
  vm.runInNewContext(readFileSync(new URL('../public/app.js',import.meta.url),'utf8'),context);
- await settle();return{element,state};
+ await settle();return{element,state,render:()=>context.render()};
 }
 test('Connect shows immediate progress and then a visible sign-in code',async()=>{
  let finish,login=false;
@@ -59,4 +59,11 @@ test('Refresh explicitly confirms the disconnected state rather than appearing i
  await element('refresh-account').onclick();
  assert.match(element('owner-message').textContent,/No ChatGPT account connected/);
  assert.equal(element('refresh-account').disabled,false);assert.equal(element('refresh-account').textContent,'Refresh');
+});
+
+test('app and run versions remain distinct, and the pilot ends at Day 1 24:00',async()=>{
+ const {element,state,render}=await fixture(async()=>undefined);state.appVersion='0.2.0';state.world.version='world-v1';render();
+ assert.equal(element('app-version').textContent,'App v0.2.0');assert.match(element('run-version').textContent,/Simulation v1/);assert.match(element('decision-pace').textContent,/v1 pilot preserved/);
+ state.world.version='world-v2';state.world.tick=288;state.world.nextDecisionTick=288;render();
+ assert.equal(element('clock').textContent,'Day 1 · 24:00');assert.match(element('decision-pace').textContent,/24 \/ 24 rounds/);
 });
