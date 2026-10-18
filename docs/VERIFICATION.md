@@ -102,3 +102,21 @@ Physical-phone layout and sign-in remain unverified; desktop browser rendering i
   and isolated account/read still pass without a connected account.
 - App v0.2.1 keeps world-v2 rules and preserves the paused run and its partial hourly proposals.
   Real subscription-backed memory behavior remains to be checked after the owner resumes the pilot.
+
+## App v0.3.0 / simulation v3 — social dilemmas — 2026-10-18
+
+- 51 automated checks pass (`npm test`, `npm run check`), including new tests for give/steal/take
+  item conservation, theft witnesses and hearing range, private-state exclusion from v3 observations,
+  blocked-not-paused impossible plans, logistic commons regrowth (never from zero), scenario endowments,
+  behavior metrics, full scripted days in all three conditions, the v3 output schema reaching the
+  Codex adapter (fake transport), and v1/v2 runs still accepting only their original decision shape.
+- Scripted-policy playtest matrix (3 conditions × demo/idle/hoard/sustain/thief policies) was used to
+  tune the conditions so strategy changes outcomes in Fragile commons and Haves and have-nots but not
+  in Plenty. These are fixed policies, not model behavior.
+- Local Chromium (Playwright), desktop 1400px and phone 390px: owner claim, scenario/temperament
+  selection through the owner dialog, new paused v3 runs, stepping, journal filters and resident
+  inspection rendered with no app-origin console errors and no horizontal overflow on phone. Fixed a
+  pre-existing phone bug where resident avatars overlapped names. `scripts/owner-link.js` recovery link
+  was used successfully against a consumed setup key.
+- Not yet verified: any live ChatGPT/Codex inference under the v3 schema, a deployed v3 Railway build,
+  and physical-iPhone rendering. The first live v3 round should be checked for valid `item` output.

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { newWorld, assign, advance, demoDecision, observation, validateDecision, WorldStore } from '../src/world.js';
 import { Runner } from '../src/runner.js';
-const d = (action, target = 'none') => ({ action, target, reason: 'Testing a valid action.', message: '' });
+const d = (action, target = 'none', item = 'none') => ({ action, target, item, reason: 'Testing a valid action.', message: '' });
 const finish = w => { for (let i = 0; i < 40 && w.agents.some(a => a.task); i++) advance(w); };
 
 test('actions require real travel and cooking consumes actual fuel and ingredients', () => {
@@ -33,9 +33,14 @@ test('observations and hearing exclude distant villagers private state', () => {
   assert.ok(!a.memories.some(m => m.text.includes('Far away secret')));
 });
 test('malformed and executable model proposals cannot enter the world', () => {
-  assert.throws(() => validateDecision({ ...d('gather','hearth') }));
-  assert.throws(() => validateDecision({ ...d('wait'), shell: 'read secrets' }));
-  assert.throws(() => validateDecision({ ...d('wait'), message: 'x'.repeat(241) }));
+  const legacy = ({ item, ...rest }) => rest;
+  assert.throws(() => validateDecision(legacy(d('gather','hearth')), 'world-v2'));
+  assert.throws(() => validateDecision({ ...d('wait'), shell: 'read secrets' }, 'world-v3'));
+  assert.throws(() => validateDecision({ ...d('wait'), message: 'x'.repeat(241) }, 'world-v3'));
+  assert.throws(() => validateDecision(legacy(d('wait')), 'world-v3'), /Invalid/);
+  assert.throws(() => validateDecision(d('wait'), 'world-v2'), /Invalid/);
+  assert.throws(() => validateDecision(d('steal', 'v2', 'meal'), 'world-v2'), /Invalid/);
+  assert.deepEqual(validateDecision(legacy(d('wait')), 'world-v2'), legacy(d('wait')));
 });
 test('one full demo day stays finite, deterministic and within resource constraints', () => {
   const run = () => { const w = newWorld(); for(let t=0;t<288;t++){for(const a of w.agents)if(!a.task)assign(w,a,demoDecision(w,a));advance(w);} return w; };

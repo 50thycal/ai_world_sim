@@ -67,3 +67,13 @@ test('app and run versions remain distinct, and the pilot ends at Day 1 24:00',a
  state.world.version='world-v2';state.world.tick=288;state.world.nextDecisionTick=288;render();
  assert.equal(element('clock').textContent,'Day 1 · 24:00');assert.match(element('decision-pace').textContent,/24 \/ 24 rounds/);
 });
+
+test('v3 runs show their experimental condition and behavior ledger, and new runs send the chosen condition',async()=>{
+ let sent;const {element,state,render}=await fixture(async(path,options)=>{if(path==='/api/admin/new')sent=JSON.parse(options.body);});
+ state.world=newWorld('demo',null,{scenario:'commons',personas:true});state.metrics={gifts:2,pantryShares:1,thefts:1,theftAttempts:3,foodGini:0.42};render();
+ assert.equal(element('scenario-tag').textContent,'CONDITION · FRAGILE COMMONS · TEMPERAMENTS');assert.match(element('scenario-summary').textContent,/never again once stripped/);
+ assert.match(element('thefts').innerHTML,/1 <em>\/ 3 tries/);assert.match(element('gini').innerHTML,/0\.42/);assert.match(element('orchard').innerHTML,/^6 /);
+ assert.match(element('inspector').innerHTML,/BEHAVIOR RECORD/);assert.match(element('inspector').innerHTML,/community-minded/);
+ element('scenario').value='inequality';element('personas').checked=true;element('model').value='';await element('new-run').onclick();
+ assert.deepEqual(sent,{mode:'demo',model:'',scenario:'inequality',personas:true});
+});

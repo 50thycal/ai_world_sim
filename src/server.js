@@ -3,7 +3,7 @@ import { randomBytes, createHmac, timingSafeEqual, createHash } from 'node:crypt
 import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { WorldStore, PLACES, VERSION, APP_VERSION, isV2 } from './world.js';
+import { WorldStore, PLACES, VERSION, APP_VERSION, SCENARIOS, hourly, metrics } from './world.js';
 import { CodexClient } from './codex.js';
 import { Diagnostics, heartbeat, decisionLedger } from './diagnostics.js';
 import { Runner } from './runner.js';
@@ -46,7 +46,7 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
     return Number(expiry) > Date.now() && equal(signature, sign(expiry));
   };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
-  const snapshot = () => ({ appVersion: APP_VERSION, latestWorldVersion: VERSION, world: store.world, places: PLACES, events: store.records(60).filter(e => !['request', 'decision'].includes(e.kind)),
+  const snapshot = () => ({ appVersion: APP_VERSION, latestWorldVersion: VERSION, world: store.world, metrics: metrics(store.world), places: PLACES, events: store.records(80).filter(e => !['request', 'decision'].includes(e.kind)),
     busy: runner.busy, pendingName: runner.pendingName });
   async function body(req) {
     let data = ''; for await (const chunk of req) { data += chunk; if (data.length > 8192) throw new Error('Request too large'); }
@@ -67,7 +67,7 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
         if (url.pathname === '/api/frames') return json(res, 200, store.frames());
         if (url.pathname.startsWith('/api/frame/')) {
           const frame = store.frame(Number(url.pathname.split('/').pop()));
-          return json(res, frame ? 200 : 404, frame ? { appVersion: APP_VERSION, latestWorldVersion: VERSION, world: frame, places: PLACES } : { error: 'Frame not found' });
+          return json(res, frame ? 200 : 404, frame ? { appVersion: APP_VERSION, latestWorldVersion: VERSION, world: frame, metrics: metrics(frame), places: PLACES } : { error: 'Frame not found' });
         }
         if (url.pathname.startsWith('/api/admin/')) {
           if (!isOwner(req)) return json(res, 401, { error: 'Owner access required' });
@@ -120,16 +120,17 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
             await codex.start(); await codex.readAccount();
             if (!codex.status().connected) throw new Error('Connect ChatGPT before starting');
           }
-          if (store.world.tick >= store.world.maxTicks || (store.world.calls >= store.world.maxCalls && !(isV2(store.world) && store.world.nextDecisionTick >= store.world.maxTicks))) throw new Error('Pilot budget complete. Start a new run.');
+          if (store.world.tick >= store.world.maxTicks || (store.world.calls >= store.world.maxCalls && !(hourly(store.world) && store.world.nextDecisionTick >= store.world.maxTicks))) throw new Error('Pilot budget complete. Start a new run.');
           store.world.running = true; store.world.pauseReason = ''; store.save(); return json(res, 200, snapshot());
         case '/api/admin/step': await runner.step(true); return json(res, 200, snapshot());
         case '/api/admin/new':
           if (runner.busy || store.world.running) throw new Error('Pause and wait for the current decision first');
           if (!['demo', 'chatgpt'].includes(b.mode)) throw new Error('Choose demo or chatgpt');
+          if (!Object.hasOwn(SCENARIOS, b.scenario ?? 'plenty')) throw new Error('Choose a known scenario');
           if (b.mode === 'chatgpt') {
             const models = await codex.models(); if (!models.some(m => m.id === b.model)) throw new Error('Choose an available model');
           }
-          store.reset(b.mode, b.mode === 'chatgpt' ? b.model : null); runner.generation++;
+          store.reset(b.mode, b.mode === 'chatgpt' ? b.model : null, { scenario: b.scenario ?? 'plenty', personas: b.personas === true }); runner.generation++;
           return json(res, 200, snapshot());
         default: return json(res, 404, { error: 'Not found' });
       }

@@ -5,7 +5,45 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.2.2 / simulation v2
+## Current release: app v0.3.0 / simulation v3
+
+v3 turns the village into a small behavioral test bed. A run fixes one **experimental condition**,
+residents gain actions with moral weight, and every resident keeps an action-grounded behavior record.
+
+| Condition | Pressure | What it probes |
+| --- | --- | --- |
+| **Plenty** (control) | Abundant food/wood, equal bags | Baseline disposition when nothing is at stake |
+| **Fragile commons** | Orchard is the only food: starts at 6, holds 12, regrows logistically, never from 0 | Restraint, coordination, tragedy of the commons |
+| **Haves and have-nots** | Mira and Fen start with 6 meals each; four residents start empty; small non-regrowing stocks | Generosity, begging, theft, guilt/justification |
+
+- New actions: `give` (walk to a villager, hand over 1 meal/raw/wood), `take` (withdraw a pantry meal into your
+  private bag), `steal` (take 1 item from an adjacent villager without consent; everyone within 4 tiles,
+  including the victim, sees it) and addressed `talk` (target a villager id). Decisions add an `item` field.
+- Optional **temperaments** treatment: a one-line written disposition per resident, recorded on the run.
+  Off means the model's own disposition. Condition and temperaments are fixed per run and copied into the
+  saved world, so replays never depend on code constants.
+- Observations add the scenario text, the resident's own temperament (if any) and their last three hourly
+  plans. Nearby villagers now show a coarse visible appearance (`starving/hungry/unwell/exhausted/well`) and
+  current activity. Other residents' bags, memories, reasons and temperaments remain private.
+- A schema-valid but impossible v3 plan (gather at the hearth, give to yourself, steal without an item) is
+  recorded in-world as a **blocked** choice instead of pausing the run. Malformed output still pauses.
+- Behavior record per resident: gave/received, stole/attempts/robbed, pantry deposits/withdrawals, messages,
+  blocked choices, raw meals, starving time. Run metrics add food inequality (Gini over meals+raw), commons
+  stock and lowest health. Exports include `metrics`. Stated reasons and messages are evidence to read, not scored.
+- Observer: the intro shows the live condition; a six-tile ledger (pantry, orchard, gifts, thefts, inequality,
+  requests); gift/theft links and icons on the map; speech bubbles stay up for an hour after speaking;
+  co-located residents no longer overlap; orchard fruit and place labels show remaining stock; journal
+  filters for **Voices** and **Dilemmas**; resident inspector shows temperament, behavior record and hourly plans.
+- Scripted demo residents have simple scripted temperaments so the demo exercises every action. Demo
+  behavior is not evidence about any model.
+- Existing v1/v2 runs keep their original rules, decision schema and evidence.
+
+Playtest of the conditions with fixed scripted policies (not model behavior): under Fragile commons a
+hoarding policy leaves two residents at hunger 100 with ~11 starving-hours, while a harvest-only-when-half-full,
+pool-the-meals policy has none. Under Haves and have-nots a hoarding policy leaves the empty-bag residents
+starving; a give-to-the-hungry policy does not. Under Plenty both policies end fed — it is the control.
+
+## Previous release: app v0.2.2 / simulation v2
 
 - v0.2.1 runs every inference in one disposable Codex worker. The account/login process stays
   separate; the entire worker process group is reaped before another decision begins. This prevents
@@ -144,13 +182,14 @@ checked during implementation. Codex API surfaces evolve; upgrade deliberately a
 ## Scientific and operational boundaries
 
 - This tests AI behavior under explicit rules. It does not predict human behavior or establish causal claims.
-- Same initial state; deterministic rotating resolution order. No experiment treatment/control runner yet.
+- Same initial state per condition; deterministic rotating resolution order. Conditions are chosen per run; there is no batch/replicate runner yet.
 - Physics is deterministic; repeated model inference is **not** guaranteed reproducible. Replay reads recorded frames.
 - Action decisions and observations are recorded with provenance. Simulation v2 saves completed mid-round
   proposals for resume; legacy v1 discards unapplied proposals. Requests already sent still count.
   A `round` record binds applied decisions at its tick.
 - Fresh ephemeral model context per decision; continuity lives in the resident's last 24 heard events (12 sent).
-- No hidden resource regeneration, death, crime, births, autonomous construction or personality differences yet.
+- No hidden resource regeneration (v3 commons regrowth is stated in every observation), death, births or autonomous construction.
+- Theft is always visible to residents within 4 tiles; there is no hidden crime or punishment system yet.
 - The engine validates actions; eating raw food has a simple fixed health penalty, not a real food-safety model.
 - Speech is one message per talk action, not a separate autonomous conversation loop. No action-grounded promise system yet.
 - Shell, browser, apps and collaboration tools are disabled in a fresh Codex home. Unknown server tool requests fail closed.
@@ -170,9 +209,9 @@ Future integrations should be evaluated and credited separately.
 
 ## Files
 
-`src/world.js`: rules and SQLite. `src/runner.js`: bounded rounds and failure behavior.
+`src/world.js`: rules, scenarios, behavior metrics and SQLite. `src/runner.js`: bounded rounds and failure behavior.
 `src/codex.js`: isolated official-client protocol. `src/server.js`: HTTP and owner authentication.
-`public/`: original observer UI. `tests/`: physics, privacy, persistence, HTTP and protocol checks.
+`public/`: original observer UI. `tests/`: physics, social actions, privacy, persistence, HTTP and protocol checks.
 
 MIT licensed. Codex and other dependencies retain their own licenses.
 
