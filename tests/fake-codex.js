@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import readline from 'node:readline';
-import {writeFileSync} from 'node:fs';
+import {writeFileSync,existsSync} from 'node:fs';
 import {join} from 'node:path';
 let n=0;
 const send=x=>process.stdout.write(JSON.stringify(x)+'\n');
@@ -17,6 +17,8 @@ for await(const line of readline.createInterface({input:process.stdin})){
   send({id:m.id,result:{turn:{id:'turn-'+n,status:'inProgress'}}});
   if(obs.name==='IgnoreTermination'){process.on('SIGTERM',()=>{});writeFileSync(join(process.env.CODEX_HOME,'test-worker.pid'),String(process.pid));setInterval(()=>{},1000);break;}
   if(obs.name==='TimeoutWorker'){setInterval(()=>{},1000);break;}
+  if(obs.name==='TimeoutOnce'&&!existsSync(join(process.env.CODEX_HOME,'timeout-once.flag'))){writeFileSync(join(process.env.CODEX_HOME,'timeout-once.flag'),'1');setInterval(()=>{},1000);break;}
+  if(obs.name==='MessageWithoutCompletion'){send({method:'item/completed',params:{threadId,item:{type:'agentMessage',text:'SECRET-MESSAGE'}}});setInterval(()=>{},1000);break;}
   if(obs.name==='RateLimit'){send({method:'turn/completed',params:{threadId,turn:{status:'failed',error:{codexErrorInfo:'rateLimitExceeded',message:'SECRET-PROVIDER',additionalDetails:'SECRET'}}}});break;}
   if(obs.name==='CrashWorker')process.exit(37);
   if(obs.name==='TriggerFailure'){send({method:'turn/completed',params:{threadId,turn:{status:'failed'}}});break;}

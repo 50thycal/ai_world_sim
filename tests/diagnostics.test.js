@@ -34,7 +34,7 @@ test('diagnostic storage/logger failures do not interrupt a model result', () =>
 test('durable request IDs link persisted proposals and failures across restart without repeating decisions', async () => {
   const dir=mkdtempSync(join(tmpdir(),'world-diagnostic-')),path=join(dir,'world.sqlite');let store=new WorldStore(path);
   try {
-    store.reset('chatgpt','test-model');let n=0;
+    store.reset('chatgpt','test-model');delete store.world.recovery;let n=0;
     const diagnostic=new Diagnostics(store.db,{log(){}});
     const runner=new Runner(store,{decide:async()=>{if(++n===2)throw Error('Codex request timed out');return {decision:{action:'wait',target:'none',item:'none',message:'',reason:'Observe'},usage:{}};}},diagnostic);
     await assert.rejects(runner.step(true),/timed out/);

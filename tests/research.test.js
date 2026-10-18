@@ -91,7 +91,7 @@ test('exact private observation and protocol inputs persist before a failed infe
     throw Error('Codex request timed out');
   } };
   try {
-    app = createApp({ dataDir: dir, codex: fake, intervalMs: 100000 }); app.store.reset('chatgpt', 'test-model');
+    app = createApp({ dataDir: dir, codex: fake, intervalMs: 100000 }); app.store.reset('chatgpt', 'test-model'); delete app.store.world.recovery;
     await assert.rejects(app.runner.step(true), /timed out/);
     assert.equal(app.store.world.calls, 1); assert.equal(app.store.world.running, false);
     const research = new Research(app.store, app.diagnostics, app.runner);

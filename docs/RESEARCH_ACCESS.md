@@ -111,3 +111,24 @@ the SQLite `frames.state` column as raw JSON without the version-compatible `dec
 Private notebooks are shown to human researchers but are sent only to their owning resident.
 Arrival encouragement is a prompt treatment; compare `socialStart` explicitly and do not infer that
 sociability was spontaneous or that a model's stated reasons prove an internal motivation.
+
+## Bounded recovery (v0.4.1)
+
+New v4 runs, and existing v4 runs on their next owner Play/Step, carry a versioned `recovery` policy,
+`plannedCalls`, persistent `retriesUsed` and a hard `maxCalls` including twelve extra attempts. A
+10-day run is 1,440 planned + 12 extra = 1,452 maximum. `calls` includes every attempt. Two automatic
+retries are allowed before pausing for review; later owner-driven retries still consume that same
+run allowance. Startup never resumes inference or silently activates recovery on a saved pause.
+
+Every retry is a new request UUID. Request records and the report ledger contain `attemptNumber`,
+`retryOf` and `automaticRetry`; `retry_scheduled` and `recovery_policy` rows preserve operational
+changes. Old failed/unresolved records remain as originally recorded. A failed attempt may have
+finished at the provider; local failure is not proof of zero remote usage. No physical outcome is
+applied until a validated successful proposal and the complete frozen round are ready.
+
+`/api/research/runtime` and `/api/state` expose `retry` during backoff. Safe `decision_timeout`
+diagnostics distinguish a completed agent message received without turn completion from no
+completed message received. Token-usage presence is a separate flag; none of these events include
+the message, raw protocol data or credentials. Earlier timeouts lack these flags and cannot be
+retroactively classified. Authentication/quota, malformed output, OOM/cleanup and unknown failures
+remain non-retryable; HTTP 4xx except 408 are excluded even under a connection-error wrapper.

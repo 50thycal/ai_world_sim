@@ -12,7 +12,7 @@ const finish = w => { const events = []; for (let i = 0; i < 40 && w.agents.some
 
 test('new v4 runs default to ten days, bound duration and describe the actual horizon', () => {
   const w = newWorld('chatgpt', 'test-model');
-  assert.equal(w.version, 'world-v4'); assert.equal(w.days, 10); assert.equal(w.maxTicks, 2880); assert.equal(w.maxCalls, 1440);
+  assert.equal(w.version, 'world-v4'); assert.equal(w.days, 10); assert.equal(w.maxTicks, 2880); assert.equal(w.maxCalls, 1452);
   assert.equal(w.socialStart, true);
   for (const d of [0, -1, 31, 1.5, '10', null, NaN]) assert.throws(() => validateDays(d), /whole number/);
   const o = observation(w, w.agents[0]);

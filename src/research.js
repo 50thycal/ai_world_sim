@@ -23,6 +23,7 @@ export class Research {
       scenario: w.scenario || null, personas: w.personas ?? null, days: w.days ?? Math.ceil(w.maxTicks / 288), socialStart: w.socialStart ?? null, current: w.id === this.store.world.id,
       status: w.tick >= w.maxTicks ? 'completed' : w.running ? 'running' : 'paused', pauseReason: w.pauseReason,
       tick: w.tick, maxTicks: w.maxTicks, calls: w.calls, maxCalls: w.maxCalls,
+      plannedCalls: w.plannedCalls ?? null, recovery: w.recovery ?? null, retriesUsed: w.retriesUsed ?? null,
       inputTokens: w.inputTokens, outputTokens: w.outputTokens, completedActions: w.completedActions,
       metrics: metrics(w), recordCounts: counts,
       frames: this.db.prepare('SELECT count(*) n FROM frames WHERE run=?').get(w.id).n,
@@ -30,7 +31,7 @@ export class Research {
   }
   ledger(id) {
     // Extract metadata in SQLite: long runs must not materialize every full prompt for a ledger.
-    const rows = this.db.prepare("SELECT id,json_object('kind',kind,'requestId',json_extract(data,'$.requestId'),'number',json_extract(data,'$.number'),'actor',json_extract(data,'$.actor'),'actorId',json_extract(data,'$.actorId'),'tick',json_extract(data,'$.tick'),'appVersion',json_extract(data,'$.appVersion'),'codeRevision',json_extract(data,'$.codeRevision'),'inputRecorded',json_type(data,'$.input') IS NOT NULL) data FROM records WHERE run=? AND kind IN ('request','decision','failure') ORDER BY id").all(id);
+    const rows = this.db.prepare("SELECT id,json_object('kind',kind,'requestId',json_extract(data,'$.requestId'),'number',json_extract(data,'$.number'),'actor',json_extract(data,'$.actor'),'actorId',json_extract(data,'$.actorId'),'tick',json_extract(data,'$.tick'),'appVersion',json_extract(data,'$.appVersion'),'codeRevision',json_extract(data,'$.codeRevision'),'inputRecorded',json_type(data,'$.input') IS NOT NULL,'attemptNumber',json_extract(data,'$.attemptNumber'),'retryOf',json_extract(data,'$.retryOf'),'automaticRetry',json_extract(data,'$.automaticRetry')) data FROM records WHERE run=? AND kind IN ('request','decision','failure') ORDER BY id").all(id);
     const outcomes = new Map();
     for (const row of rows) {
       const r = JSON.parse(row.data);
@@ -40,7 +41,7 @@ export class Research {
       const r = JSON.parse(row.data);
       if (r.kind !== 'request') return [];
       return [{ recordId: row.id, requestId: r.requestId || null, requestNumber: r.number, actor: r.actor, actorId: r.actorId || null,
-        tick: r.tick, appVersion: r.appVersion || null, codeRevision: r.codeRevision || null, inputRecorded: Boolean(r.inputRecorded),
+        tick: r.tick, appVersion: r.appVersion || null, codeRevision: r.codeRevision || null, inputRecorded: Boolean(r.inputRecorded), attemptNumber: r.attemptNumber ?? null, retryOf: r.retryOf ?? null, automaticRetry: r.automaticRetry == null ? null : Boolean(r.automaticRetry),
         outcome: !r.requestId ? 'legacy_unlinked' : outcomes.get(r.requestId) === 'decision' ? 'result_saved' : outcomes.get(r.requestId) === 'failure' ? 'failed' : 'unresolved' }];
     });
   }
@@ -98,7 +99,7 @@ export class Research {
       bootId: this.diagnostics.bootId, previousShutdown: this.diagnostics.previousShutdown,
       diagnosticWriteFailures: this.diagnostics.writeFailures, retentionEvents: this.diagnostics.limit, resources: resources(),
       currentRunId: this.store.world.id, busy: this.runner.busy, running: this.store.world.running,
-      activeRequest: this.runner.activeRequest,
+      activeRequest: this.runner.activeRequest, retry: this.runner.retryState,
       lifecycle: this.db.prepare("SELECT id,data FROM diagnostics WHERE json_extract(data,'$.event') IN ('server_start','server_stop') ORDER BY id DESC LIMIT 20").all().reverse().map(r => ({ id: r.id, data: JSON.parse(r.data) })),
     } };
     if (path === `${ROOT}/runs`) return { status: 200, body: { format: 'ai-world-research-runs-v1', generatedAt: new Date().toISOString(),

@@ -83,8 +83,18 @@ test('diagnostics correlate worker phases, sampled peaks, timeouts and provider 
   assert.equal(summary.peakMemoryMB,600);assert.ok(summary.samples>3);assert.ok(summary.durationMs>=200);
   assert.ok(events.some(e=>e.event==='codex_phase'&&e.phase==='thread_start'&&e.runId==='run-test'));
   assert.ok(events.some(e=>e.event==='inference_sample'&&e.requestId==='request-test'));
+  assert.ok(events.some(e=>e.event==='decision_timeout'&&e.messageReceived===false&&e.usageReceived===false));
   await assert.rejects(c.decide({name:'RateLimit'},'test-model',context),e=>e.diagnosticCode==='rateLimitExceeded');
   assert.ok(events.some(e=>e.providerCode==='rateLimitExceeded'));assert.ok(!JSON.stringify(events).includes('SECRET'));
+ }finally{await c.stop();rmSync(dir,{recursive:true,force:true});}
+});
+test('a completed message without turn completion is diagnosed without exporting its contents',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'codex-missing-completion-')),binary=fileURLToPath(new URL('./fake-codex.js',import.meta.url));chmodSync(binary,0o755);
+ const events=[],c=new CodexClient({dataDir:dir,binary,timeout:250,onDiagnostic:e=>events.push(e)});
+ try{
+  await assert.rejects(c.decide({name:'MessageWithoutCompletion'},'test-model'),/timed out/);
+  assert.ok(events.some(e=>e.event==='decision_timeout'&&e.messageReceived===true&&e.usageReceived===false));
+  assert.ok(!JSON.stringify(events).includes('SECRET-MESSAGE'));assert.equal(c.decisionWorker,null);
  }finally{await c.stop();rmSync(dir,{recursive:true,force:true});}
 });
 test('provider codes accept only schema-known variants and numeric HTTP status',()=>{
