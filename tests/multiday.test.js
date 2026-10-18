@@ -18,6 +18,7 @@ test('new v4 runs default to ten days, bound duration and describe the actual ho
   const o = observation(w, w.agents[0]);
   assert.equal(o.totalDays, 10); assert.equal(o.daysRemaining, 10); assert.equal(o.minuteOfDay, 0);
   assert.match(o.rules, /24 per day for 10 days/); assert.match(o.socialContext.guidance, /five strangers/);
+  assert.match(o.rules, /live through this 10-day stay/);
   assert.ok(o.socialContext.people.every(p => p.heardMessages === 0 && p.firstWords === null));
   assert.equal(observation(newWorld('demo', null, { socialStart: false }), w.agents[0]).socialContext.phase, 'living_together');
 });

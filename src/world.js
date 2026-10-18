@@ -147,7 +147,8 @@ export function observation(w, a) {
     pantryMeals: dist(a, PLACES.pantry) <= 3 ? w.pantry : 'not currently visible',
     localResources: Object.fromEntries(['orchard', 'forest'].filter(p => dist(a, PLACES[p]) <= 3)
       .map(p => [p, w.resources[PLACES[p].kind]])),
-    rules: (hourly(w) ? (isV4(w) ? RULES_V2.replace('24 per day.', `24 per day for ${w.days} days. Physical state, resources and relationships carry across midnight.`) : RULES_V2) : '') + RULES + (v3 ? RULES_V3 : ''),
+    rules: (hourly(w) ? (isV4(w) ? RULES_V2.replace('24 per day.', `24 per day for ${w.days} days. Physical state, resources and relationships carry across midnight.`) : RULES_V2) : '') +
+      (isV4(w) ? RULES.replace('live through the day;', `live through this ${w.days}-day stay;`) : RULES) + (v3 ? RULES_V3 : ''),
   };
 }
 
