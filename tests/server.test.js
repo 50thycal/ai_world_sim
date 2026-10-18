@@ -12,7 +12,7 @@ test('HTTP owner claim, CSRF, read-only spectators, exports and restart persiste
   const base=`http://127.0.0.1:${app.server.address().port}`;
   const post=(p,b,cookie,origin)=>fetch(base+p,{method:'POST',headers:{'Content-Type':'application/json',...(cookie?{cookie}:{}),...(origin?{origin}:{})},body:JSON.stringify(b)});
   try{
-    const health=await fetch(base+'/health');assert.equal(health.status,200);assert.equal((await health.json()).version,'0.3.1');
+    const health=await fetch(base+'/health');assert.equal(health.status,200);assert.equal((await health.json()).version,'0.4.0');
     assert.equal((await post('/api/admin/run',{})).status,401);
     assert.equal((await fetch(base+'/api/admin/status')).status,401);
     assert.equal((await fetch(base+'/api/admin/diagnostics')).status,401);
@@ -25,7 +25,7 @@ test('HTTP owner claim, CSRF, read-only spectators, exports and restart persiste
     assert.equal((await post('/api/claim',{token:'test-owner-capability'})).status,403);
     assert.equal((await post('/api/admin/step',{},cookie,'https://evil.invalid')).status,403);
     assert.equal((await post('/api/admin/step',{},cookie)).status,200);
-    const state=await (await fetch(base+'/api/state')).json();assert.equal(state.world.agents.length,6);assert.equal(state.world.tick,1);assert.equal(state.world.mode,'demo');assert.equal(state.appVersion,'0.3.1');assert.equal(state.world.version,'world-v3');
+    const state=await (await fetch(base+'/api/state')).json();assert.equal(state.world.agents.length,6);assert.equal(state.world.tick,1);assert.equal(state.world.mode,'demo');assert.equal(state.appVersion,'0.4.0');assert.equal(state.world.version,'world-v4');
     const exported=await (await fetch(base+'/api/admin/export',{headers:{cookie}})).json();assert.equal(exported.format,'ai-world-run-v1');assert.ok(!JSON.stringify(exported).includes('signingKey'));
     const frames=await (await fetch(base+'/api/frames')).json();assert.equal(frames.length,1);
     assert.equal((await (await fetch(base+'/api/frame/'+frames[0].id)).json()).world.tick,1);
@@ -39,6 +39,11 @@ test('HTTP owner claim, CSRF, read-only spectators, exports and restart persiste
     const unknown=await post('/api/admin/new',{mode:'demo',scenario:'__proto__'},cookie);assert.equal(unknown.status,400);assert.match((await unknown.json()).error,/scenario/);
     const commons=await (await post('/api/admin/new',{mode:'demo',scenario:'commons',personas:true},cookie)).json();
     assert.equal(commons.world.scenario.id,'commons');assert.equal(commons.world.personas,true);assert.equal(commons.metrics.orchard,6);assert.ok(commons.world.agents.every(a=>a.persona));
+    assert.equal(commons.world.days,10);assert.equal(commons.world.maxCalls,1440);assert.equal(commons.world.socialStart,true);
+    for(const days of [0,31,2.5,'10']) assert.equal((await post('/api/admin/new',{mode:'demo',days},cookie)).status,400);
+    assert.equal((await post('/api/admin/new',{mode:'demo',socialStart:'yes'},cookie)).status,400);
+    const shorter=await (await post('/api/admin/new',{mode:'demo',days:3,socialStart:false},cookie)).json();
+    assert.equal(shorter.world.days,3);assert.equal(shorter.world.maxTicks,864);assert.equal(shorter.world.maxCalls,432);assert.equal(shorter.world.socialStart,false);
     const home=await fetch(base+'/');assert.equal(home.status,200);assert.match(home.headers.get('content-security-policy'),/frame-ancestors 'none'/);assert.match(await home.text(),/Little Commons/);
     const script=await fetch(base+'/app.js');assert.equal(script.status,200);assert.match(script.headers.get('content-type'),/javascript/);
   }finally{await app.close();rmSync(dir,{recursive:true,force:true});delete process.env.OWNER_SETUP_TOKEN;}

@@ -19,6 +19,7 @@ async function fixture(backend){
   return elements.get(id);
  };
  const buttons=['connect','disconnect','play','pause','step','refresh-account','new-run'].map(element);
+ element('days').value='10';element('social-start').checked=true;
  const state={world:newWorld(),events:[],busy:false};
  const context={document:{getElementById:element,querySelector:s=>element(s.slice(1)),querySelectorAll:s=>s==='#owner-content button'?buttons:[]},
   fetch:async(path,options)=>{const response=await backend(path,options);const result=response??{data:path==='/api/state'?state:path==='/api/frames'?[]:{connected:false,available:true}};return{ok:result.ok!==false,json:async()=>result.data};},
@@ -64,7 +65,7 @@ test('Refresh explicitly confirms the disconnected state rather than appearing i
 test('app and run versions remain distinct, and the pilot ends at Day 1 24:00',async()=>{
  const {element,state,render}=await fixture(async()=>undefined);state.appVersion='0.2.2';state.world.version='world-v1';render();
  assert.equal(element('app-version').textContent,'App v0.2.2');assert.match(element('run-version').textContent,/Simulation v1/);assert.match(element('decision-pace').textContent,/v1 pilot preserved/);
- state.world.version='world-v2';state.world.tick=288;state.world.nextDecisionTick=288;render();
+ state.world.version='world-v2';delete state.world.days;state.world.maxTicks=288;state.world.tick=288;state.world.nextDecisionTick=288;render();
  assert.equal(element('clock').textContent,'Day 1 · 24:00');assert.match(element('decision-pace').textContent,/24 \/ 24 rounds/);
 });
 
@@ -75,5 +76,18 @@ test('v3 runs show their experimental condition and behavior ledger, and new run
  assert.match(element('thefts').innerHTML,/1 <em>\/ 3 tries/);assert.match(element('gini').innerHTML,/0\.42/);assert.match(element('orchard').innerHTML,/^6 /);
  assert.match(element('inspector').innerHTML,/BEHAVIOR RECORD/);assert.match(element('inspector').innerHTML,/community-minded/);
  element('scenario').value='inequality';element('personas').checked=true;element('model').value='';await element('new-run').onclick();
- assert.deepEqual(sent,{mode:'demo',model:'',scenario:'inequality',personas:true});
+ assert.deepEqual(sent,{mode:'demo',model:'',scenario:'inequality',personas:true,days:10,socialStart:true});
+});
+
+test('v4 duration controls update the budget, preserve midnight labels and expose private social notes',async()=>{
+ const {element,state,render}=await fixture(async()=>undefined);
+ element('days').value='10';element('days').oninput();assert.match(element('run-budget').textContent,/1,440/);
+ element('days').value='2.5';await element('new-run').onclick();assert.match(element('owner-message').textContent,/whole days/);
+ state.world.tick=288;state.world.nextDecisionTick=288;render();
+ assert.equal(element('clock').textContent,'Day 2 / 10 · 00:00');assert.match(element('decision-pace').textContent,/24 \/ 240 rounds/);
+ state.world.tick=2880;render();assert.equal(element('clock').textContent,'Day 10 / 10 · 24:00');
+ state.world.agents[0].relationships.v2={name:'<script>bad()</script>',heardMessages:1,giftsReceived:0,theftsSuffered:0,firstWords:null,recentEvents:[]};render();
+ assert.match(element('inspector').innerHTML,/SOCIAL NOTEBOOK/);assert.ok(!element('inspector').innerHTML.includes('<script>'));
+ state.daySummaries=[{day:1,daily:{gatheredFood:4,gatheredWood:0,mealsCooked:2,gifts:1,thefts:0,messages:6,starvingHours:0},cumulative:{orchard:5}}];render();
+ assert.equal(element('day-report').hidden,false);assert.match(element('day-rows').innerHTML,/<th>1<\/th>/);
 });

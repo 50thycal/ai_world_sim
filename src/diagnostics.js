@@ -67,7 +67,7 @@ export class Diagnostics {
 }
 
 export function decisionLedger(store) {
-  const records = store.records(10000);
+  const records = store.db.prepare("SELECT json_extract(data,'$.kind') kind,json_extract(data,'$.requestId') requestId,json_extract(data,'$.number') number,json_extract(data,'$.tick') tick,json_extract(data,'$.appVersion') appVersion FROM records WHERE run=? AND kind IN ('request','decision','failure') ORDER BY id").all(store.world.id);
   const outcomes = new Map(records.filter(r => r.requestId && ['decision', 'failure'].includes(r.kind)).map(r => [r.requestId, r.kind]));
   return records.filter(r => r.kind === 'request').map(r => ({ requestId: r.requestId || null, requestNumber: r.number,
     tick: r.tick, appVersion: r.appVersion || null,

@@ -3,7 +3,7 @@ import { randomBytes, createHmac, timingSafeEqual, createHash } from 'node:crypt
 import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { WorldStore, PLACES, VERSION, APP_VERSION, SCENARIOS, hourly, metrics } from './world.js';
+import { WorldStore, PLACES, VERSION, APP_VERSION, SCENARIOS, DEFAULT_DAYS, validateDays, hourly, metrics } from './world.js';
 import { CodexClient } from './codex.js';
 import { Diagnostics, heartbeat, decisionLedger } from './diagnostics.js';
 import { Runner } from './runner.js';
@@ -49,6 +49,7 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
   };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
   const snapshot = () => ({ appVersion: APP_VERSION, latestWorldVersion: VERSION, world: store.world, metrics: metrics(store.world), places: PLACES, events: store.records(80).filter(e => !['request', 'decision'].includes(e.kind)),
+    daySummaries: store.db.prepare("SELECT data FROM records WHERE run=? AND kind='day_summary' ORDER BY id").all(store.world.id).map(r => { const { day, daily, cumulative } = JSON.parse(r.data); return { day, daily, cumulative }; }),
     busy: runner.busy, pendingName: runner.pendingName });
   async function body(req) {
     let data = ''; for await (const chunk of req) { data += chunk; if (data.length > 8192) throw new Error('Request too large'); }
@@ -132,10 +133,12 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
           if (runner.busy || store.world.running) throw new Error('Pause and wait for the current decision first');
           if (!['demo', 'chatgpt'].includes(b.mode)) throw new Error('Choose demo or chatgpt');
           if (!Object.hasOwn(SCENARIOS, b.scenario ?? 'plenty')) throw new Error('Choose a known scenario');
+          validateDays(b.days ?? DEFAULT_DAYS);
+          if (b.socialStart !== undefined && typeof b.socialStart !== 'boolean') throw new Error('Choose whether to encourage introductions');
           if (b.mode === 'chatgpt') {
             const models = await codex.models(); if (!models.some(m => m.id === b.model)) throw new Error('Choose an available model');
           }
-          store.reset(b.mode, b.mode === 'chatgpt' ? b.model : null, { scenario: b.scenario ?? 'plenty', personas: b.personas === true }); runner.generation++;
+          store.reset(b.mode, b.mode === 'chatgpt' ? b.model : null, { scenario: b.scenario ?? 'plenty', personas: b.personas === true, days: b.days ?? DEFAULT_DAYS, socialStart: b.socialStart ?? true }); runner.generation++;
           return json(res, 200, snapshot());
         default: return json(res, 404, { error: 'Not found' });
       }

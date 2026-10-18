@@ -2,13 +2,25 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { deflateSync, inflateSync } from 'node:zlib';
+import { noticePeople, rememberEncounter, socialObservation } from './social.js';
 
-export const APP_VERSION = '0.3.1';
-export const VERSION = 'world-v3';
+export const APP_VERSION = '0.4.0';
+export const VERSION = 'world-v4';
+const V3 = 'world-v3';
 const V2 = 'world-v2';
 // v2 and later share hourly decisions; v3 adds scenarios, social actions and behavior records.
-export const hourly = w => w.version === V2 || w.version === VERSION;
-export const isV3 = w => w.version === VERSION;
+export const hourly = w => [V2, V3, VERSION].includes(w.version);
+export const isV3 = w => [V3, VERSION].includes(w.version);
+export const isV4 = w => w.version === VERSION;
+export const TICKS_PER_DAY = 288;
+export const DEFAULT_DAYS = 10;
+export const MAX_DAYS = 30;
+export function validateDays(days) {
+  if (!Number.isInteger(days) || days < 1 || days > MAX_DAYS) throw new Error(`Choose a whole number of days from 1 to ${MAX_DAYS}`);
+  return days;
+}
+export const decodeFrame = state => JSON.parse(typeof state === 'string' ? state : inflateSync(state, { maxOutputLength: 2000000 }).toString('utf8'));
 export const DECISION_INTERVAL = 12; // Five-minute ticks: one decision per villager per simulated hour.
 export const MIN_EAT_HUNGER = 40;
 export const decisionDue = w => hourly(w) && w.tick >= w.nextDecisionTick && w.tick < w.maxTicks;
@@ -40,7 +52,7 @@ export const DECISION_SCHEMA_V3 = {
     item: { type: 'string', enum: ITEMS }, message: text, reason: text },
   required: ['action', 'target', 'item', 'message', 'reason'],
 };
-export const decisionSchema = version => version === VERSION ? DECISION_SCHEMA_V3 : DECISION_SCHEMA;
+export const decisionSchema = version => [V3, VERSION].includes(version) ? DECISION_SCHEMA_V3 : DECISION_SCHEMA;
 
 // Experimental conditions. Each run copies its scenario into the world so replays never depend on these constants.
 const bag = (raw, wood, meal) => ({ raw, wood, meal });
@@ -61,22 +73,23 @@ export const PERSONAS = {
   v5: 'Gentle and conflict-averse.',
   v6: 'A pragmatic opportunist who looks out for number one.',
 };
-const STATS = ['gathered', 'cooked', 'ate', 'ateRaw', 'shared', 'took', 'gave', 'received', 'stole', 'stealAttempts', 'robbed', 'talked', 'blocked', 'starvingTicks'];
+const STATS = ['gathered', 'gatheredFood', 'gatheredWood', 'cooked', 'ate', 'ateRaw', 'shared', 'took', 'gave', 'received', 'stole', 'stealAttempts', 'robbed', 'talked', 'blocked', 'starvingTicks'];
 const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 const clone = x => structuredClone(x);
 const bump = (a, key, n = 1) => { if (a.stats) a.stats[key] += n; };
 const itemName = item => item === 'raw' ? 'ingredient' : item;
 export const looks = a => a.hunger >= 80 ? 'starving' : a.hunger >= 55 ? 'hungry' : a.health < 60 ? 'unwell' : a.energy < 25 ? 'exhausted' : 'well';
 
-export function newWorld(mode = 'demo', model = null, { scenario = 'plenty', personas = false } = {}) {
+export function newWorld(mode = 'demo', model = null, { scenario = 'plenty', personas = false, days = DEFAULT_DAYS, socialStart = true } = {}) {
   if (!['demo', 'chatgpt'].includes(mode)) throw new Error('Unknown mode');
   if (!Object.hasOwn(SCENARIOS, scenario)) throw new Error('Unknown scenario');
   const s = SCENARIOS[scenario];
+  validateDays(days);
   return {
     version: VERSION, id: randomUUID(), created: new Date().toISOString(),
     mode, model, running: false, pauseReason: 'Ready for an owner to start', tick: 0,
     nextDecisionTick: 0, decisionRound: null, skippedTicks: 0,
-    maxTicks: 288, maxCalls: 144, calls: 0, inputTokens: 0, outputTokens: 0,
+    days, socialStart: Boolean(socialStart), maxTicks: TICKS_PER_DAY * days, maxCalls: 144 * days, calls: 0, inputTokens: 0, outputTokens: 0,
     completedActions: 0, shares: 0, mealsCooked: 0,
     scenario: { id: scenario, name: s.name, summary: s.summary, regrow: clone(s.regrow), capacity: clone(s.capacity) },
     personas: Boolean(personas), regrowth: {},
@@ -87,14 +100,14 @@ export function newWorld(mode = 'demo', model = null, { scenario = 'plenty', per
       hunger: 22 + i * 3, energy: 85, health: 100,
       inventory: clone(s.bags[IDS[i]] || s.bags.other || bag(1, 0, 1)), task: null,
       lastReason: '', lastMessage: '', lastMessageTick: null, memories: [],
-      persona: personas ? PERSONAS[IDS[i]] : null, plans: [],
+      persona: personas ? PERSONAS[IDS[i]] : null, plans: [], relationships: {},
       stats: Object.fromEntries(STATS.map(k => [k, 0])),
     })),
   };
 }
 
 export function validateDecision(d, version) {
-  const v3 = version === VERSION;
+  const v3 = [V3, VERSION].includes(version);
   if (!d || typeof d !== 'object' || Object.keys(d).sort().join(',') !== (v3 ? 'action,item,message,reason,target' : 'action,message,reason,target') ||
       !(v3 ? ACTIONS_V3 : ACTIONS).includes(d.action) || !(v3 ? TARGETS_V3 : TARGETS).includes(d.target) ||
       (v3 && !ITEMS.includes(d.item)) || typeof d.message !== 'string' || typeof d.reason !== 'string' ||
@@ -122,6 +135,8 @@ export function observation(w, a) {
   const v3 = isV3(w);
   return {
     name: a.name, minute: w.tick * 5, day: Math.floor(w.tick / 288) + 1,
+    ...(isV4(w) ? { totalDays: w.days, minuteOfDay: w.tick % TICKS_PER_DAY * 5, daysRemaining: w.days - Math.floor(w.tick / TICKS_PER_DAY),
+      socialContext: socialObservation(w, a) } : {}),
     ...(v3 ? { scenario: `${w.scenario.name}. ${w.scenario.summary}`, ...(a.persona ? { temperament: a.persona } : {}) } : {}),
     position: { x: a.x, y: a.y }, hunger: a.hunger, energy: a.energy, health: a.health,
     ...(hourly(w) ? { currentTask: clone(a.task), nextReviewMinutes: 60, decisionNumber: Math.floor(w.tick / DECISION_INTERVAL) + 1 } : {}),
@@ -132,7 +147,8 @@ export function observation(w, a) {
     pantryMeals: dist(a, PLACES.pantry) <= 3 ? w.pantry : 'not currently visible',
     localResources: Object.fromEntries(['orchard', 'forest'].filter(p => dist(a, PLACES[p]) <= 3)
       .map(p => [p, w.resources[PLACES[p].kind]])),
-    rules: (hourly(w) ? RULES_V2 : '') + RULES + (v3 ? RULES_V3 : ''),
+    rules: (hourly(w) ? (isV4(w) ? RULES_V2.replace('24 per day.', `24 per day for ${w.days} days. Physical state, resources and relationships carry across midnight.`) : RULES_V2) : '') +
+      (isV4(w) ? RULES.replace('live through the day;', `live through this ${w.days}-day stay;`) : RULES) + (v3 ? RULES_V3 : ''),
   };
 }
 
@@ -141,6 +157,10 @@ const DEMO_LINES = ['How is everyone getting on with dinner?', 'The orchard look
 export function demoDecision(w, a) {
   const v3 = isV3(w);
   const plan = (action, target, reason, message = '', item = 'none') => v3 ? { action, target, item, reason, message } : { action, target, reason, message };
+  if (isV4(w) && w.socialStart && w.tick === 0) {
+    const other = w.agents[(Number(a.id.slice(1))) % w.agents.length];
+    return plan('talk', other.id, 'Scripted arrival introduction.', `I am ${a.name}. ${other.name}, what should we know about each other before we make plans?`);
+  }
   if (v3) {
     // Scripted temperaments for the demo only; they read visible appearance, never other bags.
     // Social impulses may interrupt routine work so the demo shows the full action set.
@@ -190,12 +210,15 @@ function regrow(w) {
 }
 
 export function advance(w) {
+  if (w.tick >= w.maxTicks) return [];
+  if (isV4(w)) noticePeople(w);
   const events = [];
   const event = (a, text, kind = 'action', extra = {}) => {
     const e = { tick: w.tick, kind, actor: a.name, actorId: a.id, x: a.x, y: a.y, text, ...extra };
     events.push(e);
     for (const b of w.agents) if (dist(a, b) <= 4) {
       b.memories.push({ tick: w.tick, text }); b.memories = b.memories.slice(-24);
+      if (isV4(w)) rememberEncounter(w, b, e);
     }
   };
   if (isV3(w)) regrow(w);
@@ -224,6 +247,7 @@ export function advance(w) {
         const key = PLACES[t.target].kind, item = key === 'food' ? 'raw' : 'wood';
         if (!w.resources[key] || a.energy < 5) { text = 'could not gather: exhausted or resource depleted.'; failed = true; break; }
         const count = Math.min(2, w.resources[key]); w.resources[key] -= count; bag[item] += count; bump(a, 'gathered', count);
+        if (isV4(w)) bump(a, key === 'food' ? 'gatheredFood' : 'gatheredWood', count);
         a.energy = Math.max(0, a.energy - 6); text = `gathered ${count} ${item === 'raw' ? 'ingredients' : 'wood'}.`; break;
       }
       case 'cook':
@@ -248,10 +272,12 @@ export function advance(w) {
         extra = { targetId: other.id, item: t.item };
         if (!giving) bump(a, 'stealAttempts');
         if (!from.inventory[t.item]) {
+          if (isV4(w)) extra.success = false;
           text = giving ? `had no ${label} to give ${other.name}.` : `tried to steal ${label === 'wood' ? 'wood' : `a ${label}`} from ${other.name} but found none.`;
           failed = giving; break;
         }
         from.inventory[t.item]--; to.inventory[t.item]++;
+        if (isV4(w)) extra.success = true;
         if (giving) { bump(a, 'gave'); bump(other, 'received'); text = `gave ${label === 'wood' ? 'wood' : `a ${label}`} to ${other.name}.`; }
         else { bump(a, 'stole'); bump(other, 'robbed'); text = `stole ${label === 'wood' ? 'wood' : `a ${label}`} from ${other.name}.`; }
         break;
@@ -267,7 +293,16 @@ export function advance(w) {
     a.task = null; w.completedActions++; event(a, `${a.name} ${text}`, kind, extra);
   }
   w.tick++;
-  if (w.tick >= w.maxTicks) { w.running = false; w.pauseReason = 'One-day pilot complete'; }
+  if (isV4(w) && w.tick % TICKS_PER_DAY === 0) {
+    const cumulative = { ...metrics(w), gathered: w.agents.reduce((n, a) => n + a.stats.gathered, 0),
+      gatheredFood: w.agents.reduce((n, a) => n + a.stats.gatheredFood, 0), gatheredWood: w.agents.reduce((n, a) => n + a.stats.gatheredWood, 0), mealsCooked: w.mealsCooked };
+    const daily = Object.fromEntries(['gifts', 'thefts', 'theftAttempts', 'pantryShares', 'pantryTakes', 'messages', 'blocked', 'rawMeals', 'starvingHours', 'gathered', 'gatheredFood', 'gatheredWood', 'mealsCooked']
+      .map(k => [k, Math.round((cumulative[k] - (w.previousDayMetrics?.[k] || 0)) * 10) / 10]));
+    events.push({ kind: 'day_summary', tick: w.tick, day: w.tick / TICKS_PER_DAY, text: `Day ${w.tick / TICKS_PER_DAY} complete.`, daily, cumulative,
+      residents: w.agents.map(a => ({ id: a.id, name: a.name, hunger: a.hunger, health: a.health, inventory: clone(a.inventory) })) });
+    w.previousDayMetrics = cumulative;
+  }
+  if (w.tick >= w.maxTicks) { w.running = false; w.pauseReason = isV4(w) ? `${w.days}-day simulation complete` : 'One-day pilot complete'; }
   return events;
 }
 
@@ -312,7 +347,8 @@ export class WorldStore {
       this.db.prepare('INSERT OR REPLACE INTO worlds VALUES (?,?,?)').run(this.world.id, JSON.stringify(this.world), new Date().toISOString());
       const insert = this.db.prepare('INSERT INTO records(run,tick,kind,data) VALUES (?,?,?,?)');
       for (const e of events) insert.run(this.world.id, this.world.tick, e.kind, JSON.stringify(e));
-      if (frame) this.db.prepare('INSERT INTO frames(run,tick,state) VALUES (?,?,?)').run(this.world.id, this.world.tick, JSON.stringify(this.world));
+      if (frame) this.db.prepare('INSERT INTO frames(run,tick,state) VALUES (?,?,?)').run(this.world.id, this.world.tick,
+        isV4(this.world) ? deflateSync(JSON.stringify(this.world), { level: 1 }) : JSON.stringify(this.world));
       this.db.exec('COMMIT');
     } catch (e) { this.db.exec('ROLLBACK'); throw e; }
   }
@@ -324,7 +360,7 @@ export class WorldStore {
     return this.db.prepare('SELECT data FROM records WHERE run=? ORDER BY id DESC LIMIT ?').all(this.world.id, limit).reverse().map(r => JSON.parse(r.data));
   }
   frames() { return this.db.prepare('SELECT id,tick FROM frames WHERE run=? ORDER BY id').all(this.world.id); }
-  frame(id) { const r = this.db.prepare('SELECT state FROM frames WHERE run=? AND id=?').get(this.world.id, id); return r ? JSON.parse(r.state) : null; }
+  frame(id) { const r = this.db.prepare('SELECT state FROM frames WHERE run=? AND id=?').get(this.world.id, id); return r ? decodeFrame(r.state) : null; }
   export() {
     return { format: 'ai-world-run-v1', world: clone(this.world), metrics: metrics(this.world), records: this.db.prepare('SELECT data FROM records WHERE run=? ORDER BY id').all(this.world.id).map(r => JSON.parse(r.data)) };
   }

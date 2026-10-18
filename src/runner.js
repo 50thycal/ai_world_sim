@@ -11,7 +11,7 @@ export class Runner {
   async proposal(w, a) {
     let decision, usage = {};
     if (w.mode === 'chatgpt') {
-      if (w.calls >= w.maxCalls) throw new Error('144-request pilot budget reached');
+      if (w.calls >= w.maxCalls) throw new Error(`${w.maxCalls}-request run budget reached`);
       if (!w.model) throw new Error('Choose a model for this new ChatGPT run');
       const requestId = randomUUID();
       const input = observation(w, a);

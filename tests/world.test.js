@@ -64,6 +64,6 @@ test('owner pause during inference discards a late answer without advancing time
   assert.equal(s.world.tick,0);assert.equal(s.world.running,false);assert.ok(s.world.agents.every(a=>!a.task));}finally{s.close();rmSync(dir,{recursive:true,force:true});}
 });
 test('request budget is persisted before inference and cannot be bypassed on resume', async () => {
-  const dir=mkdtempSync(join(tmpdir(),'world-'));const s=new WorldStore(join(dir,'world.sqlite'));try{s.reset('chatgpt','test-model');s.world.calls=144;s.save();let called=false;
-  const r=new Runner(s,{decide:async()=>{called=true;}});await assert.rejects(r.step(true));assert.equal(called,false);assert.equal(s.world.calls,144);}finally{s.close();rmSync(dir,{recursive:true,force:true});}
+  const dir=mkdtempSync(join(tmpdir(),'world-'));const s=new WorldStore(join(dir,'world.sqlite'));try{s.reset('chatgpt','test-model');s.world.calls=s.world.maxCalls;s.save();let called=false;
+  const r=new Runner(s,{decide:async()=>{called=true;}});await assert.rejects(r.step(true));assert.equal(called,false);assert.equal(s.world.calls,s.world.maxCalls);}finally{s.close();rmSync(dir,{recursive:true,force:true});}
 });

@@ -1,3 +1,22 @@
+# v0.4.0 multi-day social world — 2026-10-18
+
+- Local Node 24 checks and 59 tests pass, including a full ten-day mock-inference run: 240 hourly
+  rounds, 1,440 requests, 2,881 replay frames, ten daily summaries and a midnight restart/resume.
+- A full ten-day scripted commons run checks finite physical state, bounded notebooks and daily
+  accounting. Scripted social replay frames occupied about 14.5 MB; the final world was about 47 KB.
+  This measures a local demo fixture, not provider usage, production memory or a storage forecast.
+- Social privacy tests preserve first words, gifts and witnessed theft across midnight and exclude
+  distant events and other residents' private notebooks/inventories. Trust is not engine-scored.
+- HTTP/owner-form tests cover duration validation, default 10-day/1,440-attempt budgets, 3-day
+  overrides, social-start toggles, midnight/final-day labels and escaped notebook text.
+- Browser acceptance at 1440×1000 and 390×844 is added to GitHub CI with disposable demo data.
+  Local browser installation failed because downloaded browser archives were truncated, and the
+  cloud browser refuses loopback previews. GitHub CI run 39169552046 subsequently passed the
+  desktop and phone acceptance checks using system Chrome; this is viewport emulation, not a
+  physical-iPhone test. Screenshots are retained as that workflow’s browser-acceptance artifact.
+- No new paid provider inference or live ten-day run was started by this verification. Historical
+  v3 state/frames must be checked after deployment before claiming production preservation.
+
 # v0.3.1 research access — 2026-10-18
 
 - `npm run check` and `npm test`: 53 tests passed locally on Node 24.19.0.
