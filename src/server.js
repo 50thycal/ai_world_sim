@@ -7,6 +7,7 @@ import { WorldStore, PLACES, VERSION, APP_VERSION, SCENARIOS, hourly, metrics } 
 import { CodexClient } from './codex.js';
 import { Diagnostics, heartbeat, decisionLedger } from './diagnostics.js';
 import { Runner } from './runner.js';
+import { Research } from './research.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const hash = s => createHash('sha256').update(s).digest('hex');
@@ -33,6 +34,7 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
   const diagnostics = new Diagnostics(store.db);
   codex ||= new CodexClient({ dataDir, binary: process.env.CODEX_BINARY || join(root, 'node_modules/.bin/codex'), onDiagnostic: event => diagnostics.emit(event) });
   const runner = new Runner(store, codex, diagnostics);
+  const research = new Research(store, diagnostics, runner);
   diagnostics.emit({ event: 'run_recovered', runId: store.world.id, worldVersion: store.world.version, tick: store.world.tick, calls: store.world.calls, pendingProposals: store.world.decisionRound?.decisions.length || 0 });
   const stopHeartbeat = heartbeat(diagnostics, runner, store);
   const { owner, save: saveOwner } = ownerStorage(dataDir);
@@ -62,6 +64,9 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
       const url = new URL(req.url, 'http://local');
       if (req.method === 'GET') {
         if (url.pathname === '/health') return json(res, 200, { ok: true, version: APP_VERSION, latestWorldVersion: VERSION });
+        if (url.pathname === '/api/research' || url.pathname.startsWith('/api/research/')) {
+          const result = research.get(url); return json(res, result.status, result.body);
+        }
         if (url.pathname === '/api/state') return json(res, 200, snapshot());
         if (url.pathname === '/api/session') return json(res, 200, { owner: isOwner(req) });
         if (url.pathname === '/api/frames') return json(res, 200, store.frames());

@@ -5,7 +5,14 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.3.0 / simulation v3
+## Current release: app v0.3.1 / simulation v3
+
+v0.3.1 adds [self-service research access](docs/RESEARCH_ACCESS.md) for ChatGPT, Codex and Claude.
+The public read-only `/api/research` API lists every retained run and exposes per-run reports,
+paginated scientific records/diagnostics and archived replay frames. `npm run inspect:sim` fetches
+a report without owner cookies or model calls; add `-- --run RUN_ID --evidence` for the evidence pages.
+New ChatGPT requests persist their exact closed-world observation and protocol inputs before inference;
+older missing inputs remain explicitly unknown. Simulation rules are unchanged from v0.3.0.
 
 v3 turns the village into a small behavioral test bed. A run fixes one **experimental condition**,
 residents gain actions with moral weight, and every resident keeps an action-grounded behavior record.
@@ -184,7 +191,8 @@ checked during implementation. Codex API surfaces evolve; upgrade deliberately a
 - This tests AI behavior under explicit rules. It does not predict human behavior or establish causal claims.
 - Same initial state per condition; deterministic rotating resolution order. Conditions are chosen per run; there is no batch/replicate runner yet.
 - Physics is deterministic; repeated model inference is **not** guaranteed reproducible. Replay reads recorded frames.
-- Action decisions and observations are recorded with provenance. Simulation v2 saves completed mid-round
+- Action decisions are recorded with provenance; exact observations/protocol inputs are saved for requests
+  made from app v0.3.1 onward. Older observations cannot be reliably recovered. Simulation v2 saves completed mid-round
   proposals for resume; legacy v1 discards unapplied proposals. Requests already sent still count.
   A `round` record binds applied decisions at its tick.
 - Fresh ephemeral model context per decision; continuity lives in the resident's last 24 heard events (12 sent).

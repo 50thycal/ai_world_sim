@@ -34,6 +34,7 @@ export class Diagnostics {
   constructor(db, { log = event => console.info(JSON.stringify(event)), limit = 20000 } = {}) {
     this.db = db; this.log = log; this.limit = Math.max(100, limit); this.bootId = randomUUID(); this.writeFailures = 0;
     db.exec('CREATE TABLE IF NOT EXISTS diagnostics (id INTEGER PRIMARY KEY, data TEXT NOT NULL)');
+    db.exec("CREATE INDEX IF NOT EXISTS diagnostics_run ON diagnostics(json_extract(data,'$.runId'),id)");
     const last = db.prepare('SELECT data FROM diagnostics ORDER BY id DESC LIMIT 1').get();
     const previous = last ? JSON.parse(last.data) : null;
     this.previousShutdown = !previous ? 'unknown' : previous.event === 'server_stop' && !previous.busy ? 'clean' : 'unclean_or_incomplete';
