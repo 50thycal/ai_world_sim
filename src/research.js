@@ -1,4 +1,4 @@
-import { APP_VERSION, VERSION, metrics } from './world.js';
+import { APP_VERSION, VERSION, decodeFrame, metrics } from './world.js';
 import { resources } from './diagnostics.js';
 
 const ROOT = '/api/research';
@@ -20,7 +20,7 @@ export class Research {
   summary({ world: w, updated }) {
     const counts = Object.fromEntries(this.db.prepare('SELECT kind,count(*) n FROM records WHERE run=? GROUP BY kind').all(w.id).map(r => [r.kind, r.n]));
     return { id: w.id, created: w.created, updated, worldVersion: w.version, mode: w.mode, model: w.model,
-      scenario: w.scenario || null, personas: w.personas ?? null, current: w.id === this.store.world.id,
+      scenario: w.scenario || null, personas: w.personas ?? null, days: w.days ?? Math.ceil(w.maxTicks / 288), socialStart: w.socialStart ?? null, current: w.id === this.store.world.id,
       status: w.tick >= w.maxTicks ? 'completed' : w.running ? 'running' : 'paused', pauseReason: w.pauseReason,
       tick: w.tick, maxTicks: w.maxTicks, calls: w.calls, maxCalls: w.maxCalls,
       inputTokens: w.inputTokens, outputTokens: w.outputTokens, completedActions: w.completedActions,
@@ -29,7 +29,8 @@ export class Research {
       report: `${ROOT}/runs/${w.id}` };
   }
   ledger(id) {
-    const rows = this.db.prepare("SELECT id,data FROM records WHERE run=? AND kind IN ('request','decision','failure') ORDER BY id").all(id);
+    // Extract metadata in SQLite: long runs must not materialize every full prompt for a ledger.
+    const rows = this.db.prepare("SELECT id,json_object('kind',kind,'requestId',json_extract(data,'$.requestId'),'number',json_extract(data,'$.number'),'actor',json_extract(data,'$.actor'),'actorId',json_extract(data,'$.actorId'),'tick',json_extract(data,'$.tick'),'appVersion',json_extract(data,'$.appVersion'),'codeRevision',json_extract(data,'$.codeRevision'),'inputRecorded',json_type(data,'$.input') IS NOT NULL) data FROM records WHERE run=? AND kind IN ('request','decision','failure') ORDER BY id").all(id);
     const outcomes = new Map();
     for (const row of rows) {
       const r = JSON.parse(row.data);
@@ -39,7 +40,7 @@ export class Research {
       const r = JSON.parse(row.data);
       if (r.kind !== 'request') return [];
       return [{ recordId: row.id, requestId: r.requestId || null, requestNumber: r.number, actor: r.actor, actorId: r.actorId || null,
-        tick: r.tick, appVersion: r.appVersion || null, codeRevision: r.codeRevision || null, inputRecorded: Boolean(r.input),
+        tick: r.tick, appVersion: r.appVersion || null, codeRevision: r.codeRevision || null, inputRecorded: Boolean(r.inputRecorded),
         outcome: !r.requestId ? 'legacy_unlinked' : outcomes.get(r.requestId) === 'decision' ? 'result_saved' : outcomes.get(r.requestId) === 'failure' ? 'failed' : 'unresolved' }];
     });
   }
@@ -56,6 +57,7 @@ export class Research {
     const capturedInputs = requests.filter(r => r.inputRecorded).length;
     return { format: 'ai-world-research-report-v1', generatedAt: new Date().toISOString(), servingAppVersion: APP_VERSION,
       servingCodeRevision: revision(), run: this.summary(row), world: w, requests, requestCounts,
+      dailySummaries: this.db.prepare("SELECT data FROM records WHERE run=? AND kind='day_summary' ORDER BY id").all(w.id).map(r => JSON.parse(r.data)),
       evidence: { records: this.bounds('records', w.id), frames: this.bounds('frames', w.id), diagnostics: diagnosticBounds,
         capturedInputs, missingInputs: requests.length - capturedInputs, diagnosticRetentionEvents: this.diagnostics.limit,
         diagnosticWriteFailuresThisBoot: this.diagnostics.writeFailures, latestRunDiagnostic: latest ? JSON.parse(latest.data) : null },
@@ -108,7 +110,7 @@ export class Research {
     if (frameId) {
       if (collection !== 'frames') return { status: 404, body: { error: 'Endpoint not found' } };
       const frame = this.db.prepare('SELECT id,tick,state FROM frames WHERE run=? AND id=?').get(id, integer(frameId, 0));
-      return frame ? { status: 200, body: { id: frame.id, tick: frame.tick, world: JSON.parse(frame.state) } } : { status: 404, body: { error: 'Frame not found in this run' } };
+      return frame ? { status: 200, body: { id: frame.id, tick: frame.tick, world: decodeFrame(frame.state) } } : { status: 404, body: { error: 'Frame not found in this run' } };
     }
     return { status: 200, body: collection ? this.page(collection, id, url.searchParams) : this.report(row) };
   }

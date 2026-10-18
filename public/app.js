@@ -2,8 +2,8 @@ const $ = id => document.getElementById(id);
 let current, displayed, previous, receivedAt = 0, selected = 'v1', showLabels = true, replay = false, frames = [], owner = false, polling = false, defaultsApplied = false;
 const canvas = $('village'), ctx = canvas.getContext('2d');
 const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const time = tick => tick === 288 ? '24:00' : `${String(Math.floor(tick * 5 / 60) % 24).padStart(2, '0')}:${String(tick * 5 % 60).padStart(2, '0')}`;
-const hourlyRun = w => ['world-v2', 'world-v3'].includes(w?.version);
+const time = tick => `${String(Math.floor(tick * 5 / 60) % 24).padStart(2, '0')}:${String(tick * 5 % 60).padStart(2, '0')}`;
+const hourlyRun = w => ['world-v2', 'world-v3', 'world-v4'].includes(w?.version);
 const VERBS = { gather: 'Gathering', give: 'Giving', steal: 'Stealing', take: 'Taking', talk: 'Talking', invalid: 'Confused' };
 const ICONS = { give: '🎁', steal: '✋', take: '🥣', talk: '💬' };
 const DILEMMAS = ['give', 'steal', 'take', 'share', 'blocked', 'failure'];
@@ -22,10 +22,11 @@ function render() {
   if (!displayed) return;
   const w = displayed.world;
   $('mode').textContent = w.mode === 'demo' ? 'DEMO · SCRIPTED' : 'CHATGPT · LIVE DECISIONS';
-  $('clock').textContent = `Day ${Math.floor(Math.max(0,w.tick-1) / 288) + 1} · ${time(w.tick)}`;
-  $('app-version').textContent = `App v${current.appVersion || '0.3.0'}`;
+  const finished = w.tick >= w.maxTicks, totalDays = w.days || Math.ceil(w.maxTicks / 288);
+  $('clock').textContent = `Day ${finished ? totalDays : Math.floor(w.tick / 288) + 1}${w.days ? ' / ' + totalDays : ''} · ${finished ? '24:00' : time(w.tick)}`;
+  $('app-version').textContent = `App v${current.appVersion || '0.4.0'}`;
   $('run-version').textContent = `Simulation ${w.version.replace('world-','')} · Run ${w.id.slice(0,8)}`;
-  $('decision-pace').textContent = hourlyRun(w) ? `Hourly decisions · ${Math.min(24,(w.nextDecisionTick || 0)/12)} / 24 rounds · quiet time skips ahead` : 'v1 pilot preserved · start a fresh run to use v3';
+  $('decision-pace').textContent = hourlyRun(w) ? `Hourly decisions · ${Math.min(w.maxTicks/12,(w.nextDecisionTick || 0)/12)} / ${w.maxTicks/12} rounds · quiet time skips ahead` : 'v1 pilot preserved · start a fresh run to use v4';
   $('scenario-tag').textContent = w.scenario ? `CONDITION · ${w.scenario.name.toUpperCase()}${w.personas ? ' · TEMPERAMENTS' : ''}` : 'FIELD NOTE 001';
   $('scenario-question').innerHTML = QUESTIONS[w.scenario?.id] || QUESTIONS.plenty;
   $('scenario-summary').textContent = w.scenario?.summary || 'A one-day pilot in a shared world';
@@ -41,14 +42,20 @@ function render() {
   for (const el of document.querySelectorAll('[data-color]')) el.style.backgroundColor = el.dataset.color;
   $('residents').querySelectorAll('button').forEach(b => b.onclick = () => { selected = b.dataset.agent; render(); });
   const a = w.agents.find(x => x.id === selected);
-  $('inspector').innerHTML = `<h3>${a.name}’s day</h3><div class="needs">${[['Hunger', a.hunger], ['Energy', a.energy], ['Health', a.health]].map(([n, v]) => `<div><div class="need"><span>${n}</span><span>${Math.round(v)} / 100</span></div><div class="meter"><span data-width="${v}"></span></div></div>`).join('')}</div><div class="inventory"><span>${a.inventory.raw} ingredients</span><span>${a.inventory.wood} wood</span><span>${a.inventory.meal} meals</span></div>${a.persona ? `<p class="temperament">${escape(a.persona)}</p>` : ''}<p class="eyebrow">STATED REASON</p><p class="stated">${escape(a.lastReason || 'A new day. Nothing decided yet.')}</p>${a.stats ? `<p class="eyebrow">BEHAVIOR RECORD</p><div class="behavior">${[['Gave', a.stats.gave], ['Received', a.stats.received], ['Stole', a.stats.stole], ['Robbed', a.stats.robbed], ['To pantry', a.stats.shared], ['From pantry', a.stats.took], ['Spoke', a.stats.talked], ['Starving h', Math.round(a.stats.starvingTicks / 12 * 10) / 10]].map(([n, v]) => `<span><b>${v}</b>${n}</span>`).join('')}</div>` : ''}${a.plans?.length ? `<p class="eyebrow">HOURLY PLANS</p>${a.plans.slice(-3).reverse().map(p => `<div class="memory"><b>${time(p.tick)} · ${escape(p.action)}${p.target !== 'none' ? ' → ' + escape(nameOf(w, p.target)) : ''}${p.item && p.item !== 'none' ? ' (' + escape(p.item) + ')' : ''}</b><br>${escape(p.reason)}</div>`).join('')}` : ''}<p class="eyebrow">RECENT MEMORIES</p>${a.memories.slice(-3).reverse().map(m => `<div class="memory">${time(m.tick)} · ${escape(m.text)}</div>`).join('') || '<p class="hint">Memories form from events within hearing range.</p>'}`;
+  $('inspector').innerHTML = `<h3>${a.name}’s day</h3><div class="needs">${[['Hunger', a.hunger], ['Energy', a.energy], ['Health', a.health]].map(([n, v]) => `<div><div class="need"><span>${n}</span><span>${Math.round(v)} / 100</span></div><div class="meter"><span data-width="${v}"></span></div></div>`).join('')}</div><div class="inventory"><span>${a.inventory.raw} ingredients</span><span>${a.inventory.wood} wood</span><span>${a.inventory.meal} meals</span></div>${a.persona ? `<p class="temperament">${escape(a.persona)}</p>` : ''}<p class="eyebrow">STATED REASON</p><p class="stated">${escape(a.lastReason || 'A new day. Nothing decided yet.')}</p>${a.stats ? `<p class="eyebrow">BEHAVIOR RECORD</p><div class="behavior">${[['Gave', a.stats.gave], ['Received', a.stats.received], ['Stole', a.stats.stole], ['Robbed', a.stats.robbed], ['To pantry', a.stats.shared], ['From pantry', a.stats.took], ['Spoke', a.stats.talked], ['Starving h', Math.round(a.stats.starvingTicks / 12 * 10) / 10]].map(([n, v]) => `<span><b>${v}</b>${n}</span>`).join('')}</div>` : ''}${a.plans?.length ? `<p class="eyebrow">HOURLY PLANS</p>${a.plans.slice(-3).reverse().map(p => `<div class="memory"><b>D${Math.floor(p.tick/288)+1} ${time(p.tick)} · ${escape(p.action)}${p.target !== 'none' ? ' → ' + escape(nameOf(w, p.target)) : ''}${p.item && p.item !== 'none' ? ' (' + escape(p.item) + ')' : ''}</b><br>${escape(p.reason)}</div>`).join('')}` : ''}<p class="eyebrow">RECENT MEMORIES</p>${a.memories.slice(-3).reverse().map(m => `<div class="memory">D${Math.floor(m.tick/288)+1} ${time(m.tick)} · ${escape(m.text)}</div>`).join('') || '<p class="hint">Memories form from events within hearing range.</p>'}`;
+  if (a.relationships) {
+    const people = Object.values(a.relationships);
+    $('inspector').innerHTML += `<p class="eyebrow">SOCIAL NOTEBOOK · PRIVATE TO ${escape(a.name.toUpperCase())}</p><p class="hint">Witnessed encounters; trust is the resident’s judgment.</p>${people.map(p => `<div class="memory"><b>${escape(p.name)}</b> · heard ${p.heardMessages} messages · received ${p.giftsReceived} gifts · robbed ${p.theftsSuffered} times${p.firstWords ? '<br>First words heard: ' + escape(p.firstWords.text) : ''}${p.lastWords && p.lastWords.tick !== p.firstWords?.tick ? '<br>Latest words heard: ' + escape(p.lastWords.text) : ''}${p.recentEvents.slice(-2).map(e => '<br>D' + (Math.floor(e.tick/288)+1) + ' ' + time(e.tick) + ' · ' + escape(e.text)).join('')}</div>`).join('') || '<p class="hint">No encounters recorded yet. Everyone begins as a stranger.</p>'}`;
+  }
+  $('day-report').hidden = replay || !current.daySummaries?.length;
+  $('day-rows').innerHTML = (current.daySummaries || []).map(d => `<tr><th>${d.day}</th>${['gatheredFood','gatheredWood','mealsCooked','gifts','thefts','messages','starvingHours'].map(k => '<td>' + d.daily[k] + '</td>').join('')}<td>${d.cumulative.orchard}</td></tr>`).join('');
   for (const el of document.querySelectorAll('[data-width]')) el.style.width = `${el.dataset.width}%`;
   if (!replay) {
     const events = current.events.filter(e => e.text && (journalFilter === 'all' || (journalFilter === 'voices' ? e.kind === 'talk' : DILEMMAS.includes(e.kind)))).slice(-14).reverse();
-    $('events').innerHTML = events.map(e => `<div class="event ${escape(e.kind)}"><span class="event-time">${time(e.tick)}</span><span class="event-dot"></span><span>${ICONS[e.kind] ? ICONS[e.kind] + ' ' : ''}${escape(e.text)}</span></div>`).join('') || `<p class="empty">${journalFilter === 'all' ? 'A quiet beginning. The first footsteps are still to come.' : 'Nothing of this kind among the latest events yet.'}</p>`;
+    $('events').innerHTML = events.map(e => `<div class="event ${escape(e.kind)}"><span class="event-time">D${Math.floor(e.tick/288)+1} ${time(e.tick)}</span><span class="event-dot"></span><span>${ICONS[e.kind] ? ICONS[e.kind] + ' ' : ''}${escape(e.text)}</span></div>`).join('') || `<p class="empty">${journalFilter === 'all' ? 'A quiet beginning. The first footsteps are still to come.' : 'Nothing of this kind among the latest events yet.'}</p>`;
   }
   $('replay-banner').hidden = !replay;
-  $('playback-note').textContent = replay ? `Viewing ${time(w.tick)}. Live simulation is separate.` : `${frames.length} saved moments · ${w.inputTokens + w.outputTokens} reported tokens`;
+  $('playback-note').textContent = replay ? `Viewing day ${finished ? totalDays : Math.floor(w.tick/288)+1}, ${finished ? '24:00' : time(w.tick)}. Live simulation is separate.` : `${frames.length} saved moments · ${w.inputTokens + w.outputTokens} reported tokens`;
 }
 
 // All village artwork is original Canvas drawing. No downloaded game assets.
@@ -168,7 +175,9 @@ $('refresh-account').onclick=async()=>{
   try{const s=await account();if(s)ownerMessage(s.connected?'ChatGPT is connected.':s.login?.userCode?'Sign-in is waiting for your approval using the code below.':'No ChatGPT account connected yet. Choose Connect ChatGPT.');}
   finally{button.disabled=false;button.textContent='Refresh';}
 };
-$('new-run').onclick=()=>action('new',{mode:$('new-mode').value,model:$('model').value,scenario:$('scenario').value,personas:$('personas').checked});
+function updateBudget(){const days=Number($('days').value);$('run-budget').textContent=Number.isInteger(days)&&days>=1&&days<=30?`${days} days · up to ${(days*144).toLocaleString()} model requests (144 per day). Scripted demo makes no model requests.`:'Choose 1–30 whole days.';}
+$('days').oninput=updateBudget;
+$('new-run').onclick=()=>{const days=Number($('days').value);if(!Number.isInteger(days)||days<1||days>30){ownerMessage('Choose 1–30 whole days.',true);return;}return action('new',{mode:$('new-mode').value,model:$('model').value,scenario:$('scenario').value,personas:$('personas').checked,days,socialStart:$('social-start').checked});};
 for(const b of document.querySelectorAll('[data-filter]'))b.onclick=()=>{journalFilter=b.dataset.filter;for(const x of document.querySelectorAll('[data-filter]'))x.setAttribute('aria-pressed',String(x===b));render();};
 async function init(){const params=new URLSearchParams(location.hash.slice(1));const token=params.get('setup');if(token){history.replaceState(null,'',location.pathname);try{await api('/api/claim',{token});toast('Owner access connected on this device.');owner=true;}catch(e){toast(e.message);}}await poll();await loadFrames();if(owner)$('manage').click();}
 init();requestAnimationFrame(draw);setInterval(poll,1000);setInterval(loadFrames,6000);setInterval(()=>{if(owner&&$('owner-dialog').open&&!actionPending)account();},5000);

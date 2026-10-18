@@ -16,3 +16,9 @@ start/resume/reset a run just to inspect it. Model dialogue and stated reasons a
 - One Railway replica and persistent volume; no shared SQLite across replicas.
 - Run npm test and npm run check. Browser-check desktop and phone layouts for UI changes.
 - Distinguish protocol/demo tests from completed subscription inference and deployed persistence checks.
+
+- New v4 runs default to 10 days (1–30 configurable). Never extend or migrate saved v1/v2/v3 runs.
+- Social notebooks contain only personally witnessed encounters; trust remains the model's judgment.
+- Keep arrival framing (`socialStart`) explicit in research comparisons and preserve finite resource rules.
+- Browser acceptance: `npm run check:ui` uses disposable data at desktop/phone sizes; CI uses system Chrome.
+  Production must omit development dependencies. Use `decodeFrame` for mixed legacy/compressed replays.

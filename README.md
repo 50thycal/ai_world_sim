@@ -5,7 +5,39 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.3.1 / simulation v3
+## Current release: app v0.4.0 / simulation v4
+
+- New runs default to **10 simulated days**. In Owner controls, choose **Simulation days** (1–30).
+  Six residents review plans hourly: 144 model requests per day, **1,440 for ten days**, with no
+  extra calls for social memory. The displayed budget is a hard attempt cap; failures still pause.
+- Midnight continues the same world. Inventories, hunger, health, tasks, food/wood stocks, private
+  memories and social encounters carry forward. Time stops at the selected final day. Restart pauses
+  the same run; v1/v2/v3 archives keep their original duration, rules and evidence.
+- **Encourage introductions on arrival** defaults on. During the first two simulated hours, the
+  model is prompted to consider who the strangers are, ask questions and discuss life together.
+  It can address urgent physical needs first. This is an explicit experimental prompt treatment,
+  not a claim that cooperation emerges without prompting. Turn it off to compare arrival framing;
+  the private notebook remains available in either v4 condition.
+- Each resident has a bounded **private social notebook**: people personally seen, first/latest
+  words heard, conversations initiated, direct gifts given/received, thefts personally suffered or
+  witnessed, and the four latest observed events per person. It persists across days. The model
+  judges trust from these experiences; the engine assigns no friendship/trust score, truth label,
+  mandatory conversation or cooperation reward. No one gets another resident's notebook or bag.
+- **Days together** reports daily food and wood gathering separately, meals cooked, gifts, thefts,
+  messages, starvation and end-of-day orchard stock. The research report also includes full daily
+  summaries and resident end-of-day health/inventories, so assistants can investigate how group
+  behavior and food outcomes evolve. Counts of messages/gifts alone do not establish cooperation.
+- New v4 replay frames use lossless compression on the existing volume; legacy JSON frames remain
+  readable. Social memory is bounded and request ledgers extract only metadata rather than loading
+  every recorded prompt. No new production service or resource limit is introduced. Playwright is
+  a development-only browser-test dependency; the production image omits it.
+
+Ecological limits still matter: stocks do not reset overnight. The fragile-commons orchard still
+cannot regrow once stripped to zero, and wood does not regrow. A longer experiment can therefore
+settle into lasting scarcity. The model knows the duration and receives the condition's rules.
+The existing no-death health floor remains; this is not a realistic survival/ecosystem model.
+
+## Previous release: app v0.3.1 / simulation v3
 
 v0.3.1 adds [self-service research access](docs/RESEARCH_ACCESS.md) for ChatGPT, Codex and Claude.
 The public read-only `/api/research` API lists every retained run and exposes per-run reports,
@@ -117,7 +149,7 @@ leave its final moments unrecorded. Missing diagnostics before this upgrade cann
 - Explicit **scripted demo** and **ChatGPT subscription** runs. Fixed mode/model per run; no automatic fallback.
 - Official pinned `@openai/codex` 0.163.0 App Server over private stdio, phone-compatible device-code login.
 - SQLite world/evidence persistence, recorded-state replay and JSON evidence export.
-- One-day runs (288 five-minute steps), at most 144 villager inference attempts, at most 20 retained runs.
+- Configurable 1–30 day runs (10 by default), 144 inference attempts per day, at most 20 retained runs.
 - One-time owner link, HttpOnly owner cookie, same-origin mutation checks, read-only spectator API.
 - Restart always pauses. An inference error pauses time, records a failure and cannot turn into a demo decision.
 
@@ -134,6 +166,8 @@ Requires Node 24+. No API key, database server or frontend build is needed.
 npm ci
 npm test
 npm run check
+npx playwright install chromium  # optional local browser acceptance
+npm run check:ui
 npm start
 ```
 
@@ -204,7 +238,7 @@ checked during implementation. Codex API surfaces evolve; upgrade deliberately a
 - Standard service/container isolation, not a hardened untrusted-code VM. Villagers return validated JSON only.
 - Public spectator inspection shows villagers' memories to humans; those memories are not fed to other villagers.
 - Simulation time freezes while a decision round is generated, so request latency does not cause starvation.
-- A run is capped at one day; retained runs are not silently deleted. Archive management is a later feature.
+- New runs stop after their configured 1–30 days; retained runs are not silently deleted. Archive management is a later feature.
 
 ## Why a small engine
 
@@ -217,7 +251,7 @@ Future integrations should be evaluated and credited separately.
 
 ## Files
 
-`src/world.js`: rules, scenarios, behavior metrics and SQLite. `src/runner.js`: bounded rounds and failure behavior.
+`src/world.js`: rules, scenarios, daily metrics and SQLite. `src/social.js`: private encounter notebooks. `src/runner.js`: bounded rounds and failure behavior.
 `src/codex.js`: isolated official-client protocol. `src/server.js`: HTTP and owner authentication.
 `public/`: original observer UI. `tests/`: physics, social actions, privacy, persistence, HTTP and protocol checks.
 

@@ -15,3 +15,10 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm test
+      - name: Check desktop and phone UI
+        run: CHROME_PATH="$(command -v google-chrome)" npm run check:ui
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-acceptance
+          path: test-results/

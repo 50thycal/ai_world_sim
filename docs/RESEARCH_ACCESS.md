@@ -60,7 +60,7 @@ diagnostics or a counter reset after a container replacement does not prove a cl
    whether inference is active. The checkout and serving revision may differ.
 2. List all runs. Select the actual run ID, mode, model, rules version, condition and temperament
    setting. A scripted demo is not model-behavior evidence. Never create or resume a run to inspect it.
-3. Read its report. A saved decision means a proposal was persisted, not necessarily applied.
+3. Read its report, including `days`, `socialStart` and `dailySummaries` on v4 runs. Compare daily food/wood gathering, cooking, transfers and hunger outcomes; social notebook entries are only witnessed history, not objective trust ratings. A saved decision means a proposal was persisted, not necessarily applied.
    Check `round` records and `world.decisionRound` before counting applied decisions. Failed and
    unresolved attempts consume the request cap. Older unlinked attempts remain unknown.
 4. Fetch records and diagnostics. Correlate request UUID, actor, tick, app version, boot and failure
@@ -96,3 +96,18 @@ billing live in Railway; human UI problems may need a browser reproduction or a 
 Repository instructions cannot grant network permissions to a future assistant session. When those
 tools are available, retrieve their evidence directly; otherwise identify the precise missing access.
 Don't request passwords, session cookies or provider tokens as a workaround.
+
+## Multi-day evidence (v0.4.0)
+
+New runs default to ten days and retain a fixed `days`, `maxTicks`, `maxCalls` and `socialStart`
+condition. A day has 288 five-minute ticks and 24 decision rounds. A ten-day run allows 1,440
+ChatGPT attempts. Legacy worlds remain one-day runs. The research report's `dailySummaries` array
+contains permanent end-of-day rows, with `daily` increments, `cumulative` counters/end stocks and
+resident physical snapshots. These are also `day_summary` scientific records. Final-day completion
+and request-budget pauses are distinct. Early request failures can prevent finishing the horizon.
+
+Frame storage is losslessly compressed for v4; the HTTP JSON interface is unchanged. Never parse
+the SQLite `frames.state` column as raw JSON without the version-compatible `decodeFrame` helper.
+Private notebooks are shown to human researchers but are sent only to their owning resident.
+Arrival encouragement is a prompt treatment; compare `socialStart` explicitly and do not infer that
+sociability was spontaneous or that a model's stated reasons prove an internal motivation.

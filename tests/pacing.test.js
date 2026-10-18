@@ -37,10 +37,10 @@ test('rest restores energy progressively and ends early when fully rested',()=>{
 test('a full v2 day makes exactly 144 hourly requests, skips quiet time and finishes at 24:00',async()=>{
  const dir=mkdtempSync(join(tmpdir(),'village-day-'));const s=new WorldStore(join(dir,'world.sqlite'));
  try{
-  s.reset('chatgpt','test-model');s.world.running=true;const minutes=[];
+  s.reset('chatgpt','test-model',{days:1,socialStart:false});s.world.running=true;const minutes=[];
   const r=new Runner(s,{decide:async o=>{minutes.push(o.minute);return{decision:d('wait'),usage:{inputTokens:10,outputTokens:2}};}});
   let steps=0;while(s.world.running&&steps++<300)await r.step();
-  assert.equal(steps,24);assert.equal(s.world.tick,288);assert.equal(s.world.calls,144);assert.equal(s.world.pauseReason,'One-day pilot complete');
+  assert.equal(steps,24);assert.equal(s.world.tick,288);assert.equal(s.world.calls,144);assert.equal(s.world.pauseReason,'1-day simulation complete');
   for(let hour=0;hour<24;hour++)assert.equal(minutes.filter(m=>m===hour*60).length,6);
   assert.equal(minutes.at(-1),23*60);assert.equal(s.world.nextDecisionTick,288);assert.ok(s.world.skippedTicks>200);
   assert.equal(s.records(1000).filter(e=>e.kind==='failure').length,0);assert.equal(s.frames().at(-1).tick,288);
