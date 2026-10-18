@@ -11,7 +11,9 @@
   overrides, social-start toggles, midnight/final-day labels and escaped notebook text.
 - Browser acceptance at 1440×1000 and 390×844 is added to GitHub CI with disposable demo data.
   Local browser installation failed because downloaded browser archives were truncated, and the
-  cloud browser refuses loopback previews. CI results must be observed before claiming browser QA.
+  cloud browser refuses loopback previews. GitHub CI run 39169552046 subsequently passed the
+  desktop and phone acceptance checks using system Chrome; this is viewport emulation, not a
+  physical-iPhone test. Screenshots are retained as that workflow’s browser-acceptance artifact.
 - No new paid provider inference or live ten-day run was started by this verification. Historical
   v3 state/frames must be checked after deployment before claiming production preservation.
 
