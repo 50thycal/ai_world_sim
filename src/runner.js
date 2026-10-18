@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { failureCode } from './diagnostics.js';
-import { advance, assign, demoDecision, observation, hourly, decisionDue, DECISION_INTERVAL, routineOnly, APP_VERSION } from './world.js';
+import { INSTRUCTIONS } from './codex.js';
+import { advance, assign, demoDecision, observation, decisionSchema, hourly, decisionDue, DECISION_INTERVAL, routineOnly, APP_VERSION } from './world.js';
 
 export class Runner {
   constructor(store, codex, diagnostics = { emit() {} }) { this.diagnostics = diagnostics; this.activeRequest = null; this.store = store; this.codex = codex; this.busy = false; this.generation = 0; this.pendingName = null; }
@@ -13,13 +14,17 @@ export class Runner {
       if (w.calls >= w.maxCalls) throw new Error('144-request pilot budget reached');
       if (!w.model) throw new Error('Choose a model for this new ChatGPT run');
       const requestId = randomUUID();
-      w.calls++; this.store.save([{ kind: 'request', requestId, appVersion: APP_VERSION, actor: a.name, tick: w.tick, number: w.calls, source: 'chatgpt', model: w.model }]);
+      const input = observation(w, a);
+      // Scientific evidence only: the exact closed-world input, never host/account state.
+      w.calls++; this.store.save([{ kind: 'request', requestId, requestedAt: new Date().toISOString(), appVersion: APP_VERSION, actor: a.name, actorId: a.id, tick: w.tick, number: w.calls, source: 'chatgpt', model: w.model,
+        codeRevision: /^[a-f0-9]{40}$/.test(process.env.RAILWAY_GIT_COMMIT_SHA || '') ? process.env.RAILWAY_GIT_COMMIT_SHA : null,
+        input: { observation: input, instructions: INSTRUCTIONS, outputSchema: decisionSchema(w.version), effort: 'low' } }]);
       this.pendingName = a.name;
       const context = { requestId, runId: w.id, worldVersion: w.version, actorId: a.id, tick: w.tick, requestNumber: w.calls };
       this.activeRequest = context;
       this.diagnostics.emit({ event: 'decision_requested', ...context, model: w.model });
       let result;
-      try { result = await this.codex.decide(observation(w, a), w.model, context); }
+      try { result = await this.codex.decide(input, w.model, context); }
       catch (error) { this.diagnostics.emit({ event: 'decision_failed', ...context, failureCode: failureCode(error) }); throw error; }
       decision = result.decision; usage = result.usage || {};
       w.inputTokens += usage.inputTokens || 0; w.outputTokens += usage.outputTokens || 0;

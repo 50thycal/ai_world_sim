@@ -1,3 +1,12 @@
+# v0.3.1 research access — 2026-10-18
+
+- `npm run check` and `npm test`: 53 tests passed locally on Node 24.19.0.
+- New HTTP/CLI checks cover archived-run reads across restart, report watermarks during an append,
+  bounded pagination with no duplicate rows, run-scoped diagnostics/frames, malformed cursors,
+  owner access boundaries, credential sentinels, and exact request inputs saved before a failed call.
+- Fake model tests verify evidence plumbing, not new subscription inference or behavior.
+- Production acceptance is recorded separately after deployment; this local result does not establish it.
+
 # MVP verification — 2026-10-17
 
 ## Completed before deployment

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-export const APP_VERSION = '0.3.0';
+export const APP_VERSION = '0.3.1';
 export const VERSION = 'world-v3';
 const V2 = 'world-v2';
 // v2 and later share hourly decisions; v3 adds scenarios, social actions and behavior records.
