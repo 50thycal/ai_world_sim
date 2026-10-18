@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {newWorld,assign,advance,observation,WorldStore,PLACES} from '../src/world.js';
 import {Runner} from '../src/runner.js';
-const d=(action,target='none')=>({action,target,reason:'Test plan.',message:''});
+const d=(action,target='none',item='none')=>({action,target,item,reason:'Test plan.',message:''});
 const finish=(w,n=3)=>{for(let i=0;i<n;i++)advance(w);};
 const settle=()=>new Promise(r=>setImmediate(r));
 
@@ -16,7 +16,9 @@ test('v2 blocks unnecessary eating without consuming cooked or raw food; v1 rema
   assert.deepEqual(a.inventory,inventory);assert.equal(a.health,100);
  }
  const hungry=newWorld(),a=hungry.agents[0];a.hunger=40;assign(hungry,a,d('eat'));finish(hungry);assert.equal(a.inventory.meal,0);assert.ok(a.hunger<3);
- const legacy=newWorld();legacy.version='world-v1';const b=legacy.agents[0];b.hunger=3;assign(legacy,b,d('eat'));finish(legacy);assert.equal(b.inventory.meal,0);
+ const old=({item,...rest})=>rest;
+ const legacy=newWorld();legacy.version='world-v1';const b=legacy.agents[0];b.hunger=3;assign(legacy,b,old(d('eat')));finish(legacy);assert.equal(b.inventory.meal,0);
+ const v2=newWorld();v2.version='world-v2';const c=v2.agents[0];c.hunger=3;assign(v2,c,old(d('eat')));finish(v2);assert.equal(c.inventory.meal,1);
  assert.match(observation(hungry,a).rules,/blocked below hunger 40/);
 });
 test('continuing a journey or repeating the same plan preserves work and travel progress',()=>{

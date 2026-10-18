@@ -21,7 +21,9 @@ for await(const line of readline.createInterface({input:process.stdin})){
   if(obs.name==='CrashWorker')process.exit(37);
   if(obs.name==='TriggerFailure'){send({method:'turn/completed',params:{threadId,turn:{status:'failed'}}});break;}
   send({method:'thread/tokenUsage/updated',params:{threadId,tokenUsage:{last:{inputTokens:120,outputTokens:30}}}});
-  send({method:'item/completed',params:{threadId,item:{type:'agentMessage',text:JSON.stringify({action:'wait',target:'none',message:'',reason:'I will observe.'})}}});
+  // Answer in whichever decision shape the adapter's outputSchema requested.
+  const decision={action:'wait',target:'none',message:'',reason:'I will observe.',...(m.params.outputSchema?.properties?.item?{item:'none'}:{})};
+  send({method:'item/completed',params:{threadId,item:{type:'agentMessage',text:JSON.stringify(decision)}}});
   send({method:'turn/completed',params:{threadId,turn:{status:'completed'}}});break;
  }
  default:send({id:m.id,result:{}});

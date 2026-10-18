@@ -17,6 +17,7 @@ test('device login and fast completed turns use the real RPC adapter with a fake
     await c.start();assert.equal(c.status().connected,true);assert.equal((await c.models())[0].id,'test-model');
     const login=await c.connect();assert.equal(login.userCode,'TEST-0000');
     const r=await c.decide({name:'Mira'},'test-model');assert.equal(r.decision.action,'wait');assert.equal(r.usage.inputTokens,120);
+    const v3=await c.decide({name:'Mira'},'test-model',{worldVersion:'world-v3'});assert.equal(v3.decision.item,'none');
     await assert.rejects(c.decide({name:'TriggerFailure'},'test-model'),/failed/);
   }finally{await c.stop();rmSync(dir,{recursive:true,force:true});}
 });

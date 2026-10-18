@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { failureCode } from './diagnostics.js';
-import { advance, assign, demoDecision, observation, isV2, decisionDue, DECISION_INTERVAL, routineOnly, APP_VERSION } from './world.js';
+import { advance, assign, demoDecision, observation, hourly, decisionDue, DECISION_INTERVAL, routineOnly, APP_VERSION } from './world.js';
 
 export class Runner {
   constructor(store, codex, diagnostics = { emit() {} }) { this.diagnostics = diagnostics; this.activeRequest = null; this.store = store; this.codex = codex; this.busy = false; this.generation = 0; this.pendingName = null; }
@@ -40,7 +40,7 @@ export class Runner {
     try {
       let decisions = [], reviewed = false;
       // All proposals see the same frozen physical world. Apply only after the complete round.
-      if (isV2(w)) {
+      if (hourly(w)) {
         if (decisionDue(w)) {
           reviewed = true;
           w.decisionRound ||= { tick: w.nextDecisionTick, decisions: [] };
@@ -64,7 +64,7 @@ export class Runner {
       }
       if (this.generation !== generation) return;
       for (const [a, d] of decisions) assign(w, a, d);
-      if (reviewed && isV2(w)) { w.nextDecisionTick += DECISION_INTERVAL; w.decisionRound = null; }
+      if (reviewed && hourly(w)) { w.nextDecisionTick += DECISION_INTERVAL; w.decisionRound = null; }
       this.tick(reviewed ? [{ kind: 'round', appVersion: APP_VERSION, tick: w.tick, source: w.mode, actors: decisions.map(([a]) => a.id), decisionsApplied: true }] : []);
       if (reviewed) this.diagnostics.emit({ event: 'round_persisted', runId: w.id, worldVersion: w.version, tick: w.tick, calls: w.calls, completedActions: w.completedActions });
       const fromTick = w.tick;

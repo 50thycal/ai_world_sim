@@ -36,13 +36,13 @@ test('durable request IDs link persisted proposals and failures across restart w
   try {
     store.reset('chatgpt','test-model');let n=0;
     const diagnostic=new Diagnostics(store.db,{log(){}});
-    const runner=new Runner(store,{decide:async()=>{if(++n===2)throw Error('Codex request timed out');return {decision:{action:'wait',target:'none',message:'',reason:'Observe'},usage:{}};}},diagnostic);
+    const runner=new Runner(store,{decide:async()=>{if(++n===2)throw Error('Codex request timed out');return {decision:{action:'wait',target:'none',item:'none',message:'',reason:'Observe'},usage:{}};}},diagnostic);
     await assert.rejects(runner.step(true),/timed out/);
     const ledger=decisionLedger(store);assert.deepEqual(ledger.map(x=>x.outcome),['result_saved','failed']);assert.notEqual(ledger[0].requestId,ledger[1].requestId);
     const saved=diagnostic.report().events.find(e=>e.event==='decision_persisted');assert.equal(saved.requestId,ledger[0].requestId);
     assert.equal(diagnostic.report().events.find(e=>e.event==='decision_failed').failureCode,'timeout');
     const id=store.world.id;store.close();store=new WorldStore(path);assert.equal(store.world.id,id);assert.equal(store.world.decisionRound.decisions.length,1);
-    let calls=0;await new Runner(store,{decide:async()=>{calls++;return {decision:{action:'wait',target:'none',message:'',reason:''},usage:{}};}}).step(true);
+    let calls=0;await new Runner(store,{decide:async()=>{calls++;return {decision:{action:'wait',target:'none',item:'none',message:'',reason:''},usage:{}};}}).step(true);
     assert.equal(calls,5);assert.equal(store.world.calls,7);assert.equal(decisionLedger(store).filter(x=>x.outcome==='result_saved').length,6);
   } finally {store.close();rmSync(dir,{recursive:true,force:true});}
 });
