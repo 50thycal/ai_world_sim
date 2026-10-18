@@ -4,8 +4,9 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { deflateSync, inflateSync } from 'node:zlib';
 import { noticePeople, rememberEncounter, socialObservation } from './social.js';
+import { recoveryPolicy, RETRY_LIMIT } from './recovery.js';
 
-export const APP_VERSION = '0.4.0';
+export const APP_VERSION = '0.4.1';
 export const VERSION = 'world-v4';
 const V3 = 'world-v3';
 const V2 = 'world-v2';
@@ -89,7 +90,8 @@ export function newWorld(mode = 'demo', model = null, { scenario = 'plenty', per
     version: VERSION, id: randomUUID(), created: new Date().toISOString(),
     mode, model, running: false, pauseReason: 'Ready for an owner to start', tick: 0,
     nextDecisionTick: 0, decisionRound: null, skippedTicks: 0,
-    days, socialStart: Boolean(socialStart), maxTicks: TICKS_PER_DAY * days, maxCalls: 144 * days, calls: 0, inputTokens: 0, outputTokens: 0,
+    days, socialStart: Boolean(socialStart), maxTicks: TICKS_PER_DAY * days, plannedCalls: 144 * days,
+    maxCalls: 144 * days + RETRY_LIMIT, recovery: recoveryPolicy(), retriesUsed: 0, calls: 0, inputTokens: 0, outputTokens: 0,
     completedActions: 0, shares: 0, mealsCooked: 0,
     scenario: { id: scenario, name: s.name, summary: s.summary, regrow: clone(s.regrow), capacity: clone(s.capacity) },
     personas: Boolean(personas), regrowth: {},
@@ -326,6 +328,7 @@ export class WorldStore {
       CREATE TABLE IF NOT EXISTS worlds (id TEXT PRIMARY KEY, state TEXT NOT NULL, updated TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS records (id INTEGER PRIMARY KEY, run TEXT NOT NULL, tick INTEGER NOT NULL, kind TEXT NOT NULL, data TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS records_run ON records(run,id);
+      CREATE INDEX IF NOT EXISTS records_slot ON records(run,tick,kind);
       CREATE TABLE IF NOT EXISTS frames (id INTEGER PRIMARY KEY, run TEXT NOT NULL, tick INTEGER NOT NULL, state TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS frames_run ON frames(run,id);`);
     const row = this.db.prepare('SELECT state FROM worlds ORDER BY updated DESC LIMIT 1').get();

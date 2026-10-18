@@ -8,6 +8,7 @@ import { CodexClient } from './codex.js';
 import { Diagnostics, heartbeat, decisionLedger } from './diagnostics.js';
 import { Runner } from './runner.js';
 import { Research } from './research.js';
+import { enableRecovery } from './recovery.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const hash = s => createHash('sha256').update(s).digest('hex');
@@ -50,7 +51,7 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
   const snapshot = () => ({ appVersion: APP_VERSION, latestWorldVersion: VERSION, world: store.world, metrics: metrics(store.world), places: PLACES, events: store.records(80).filter(e => !['request', 'decision'].includes(e.kind)),
     daySummaries: store.db.prepare("SELECT data FROM records WHERE run=? AND kind='day_summary' ORDER BY id").all(store.world.id).map(r => { const { day, daily, cumulative } = JSON.parse(r.data); return { day, daily, cumulative }; }),
-    busy: runner.busy, pendingName: runner.pendingName });
+    busy: runner.busy, pendingName: runner.pendingName, retry: runner.retryState });
   async function body(req) {
     let data = ''; for await (const chunk of req) { data += chunk; if (data.length > 8192) throw new Error('Request too large'); }
     const parsed = JSON.parse(data || '{}'); if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Expected an object'); return parsed;
@@ -126,9 +127,10 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
             await codex.start(); await codex.readAccount();
             if (!codex.status().connected) throw new Error('Connect ChatGPT before starting');
           }
-          if (store.world.tick >= store.world.maxTicks || (store.world.calls >= store.world.maxCalls && !(hourly(store.world) && store.world.nextDecisionTick >= store.world.maxTicks))) throw new Error('Pilot budget complete. Start a new run.');
+          enableRecovery(store);
+          if (store.world.tick >= store.world.maxTicks || (store.world.calls >= store.world.maxCalls && !(hourly(store.world) && store.world.nextDecisionTick >= store.world.maxTicks))) throw new Error('Run attempt budget complete. Start a new run.');
           store.world.running = true; store.world.pauseReason = ''; store.save(); return json(res, 200, snapshot());
-        case '/api/admin/step': await runner.step(true); return json(res, 200, snapshot());
+        case '/api/admin/step': enableRecovery(store); await runner.step(true); return json(res, 200, snapshot());
         case '/api/admin/new':
           if (runner.busy || store.world.running) throw new Error('Pause and wait for the current decision first');
           if (!['demo', 'chatgpt'].includes(b.mode)) throw new Error('Choose demo or chatgpt');

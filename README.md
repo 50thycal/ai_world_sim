@@ -5,7 +5,32 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.4.0 / simulation v4
+## Current release: app v0.4.1 / simulation v4
+
+Temporary model timeouts and known transient connection/server failures now use bounded recovery.
+The first timeout no longer pauses an otherwise running v4 simulation.
+
+- Keep the 90-second per-request deadline. Dispose of the failed worker completely, then retry after
+  **2 seconds**, then **5 seconds**. After two automatic retries, pause for owner review.
+- Retry only the failed resident's decision using the same frozen observation. Saved proposals from
+  the other residents remain intact; physical time and hunger do not advance while retrying.
+- Separate planned reviews from extra attempts: a ten-day run has **1,440 planned requests plus
+  12 shared retry attempts**, a hard maximum of **1,452**. Manual replacements and replacements of
+  interrupted/uncertain requests consume the same persistent allowance; attempts are never refunded.
+- Authentication, quota/rate-limit errors, malformed decisions, memory/worker-cleanup failures and
+  unknown errors still pause immediately. Known HTTP 4xx failures except 408 do not auto-retry.
+- Owner Pause and server shutdown cancel pending retries. Restart remains paused. Existing v4 runs
+  enable the recorded operational policy on their next owner **Play** or **Step**, preserving the run,
+  failures and partial round. Historical v1/v2/v3 runs retain their previous behavior.
+- The observer shows recovery while it is happening; research reports expose policy, used allowance
+  and per-request retry links. Diagnostics record whether a completed agent message or token-usage
+  notification arrived before a timeout, without logging their contents. A timeout alone does not
+  establish whether the remote provider finished or charged for that attempt.
+
+For the currently paused v4 experiment, press **Play village once after this release is deployed**.
+That enables recovery and resumes the saved hour. A new run is unnecessary.
+
+## Previous release: app v0.4.0 / simulation v4
 
 - New runs default to **10 simulated days**. In Owner controls, choose **Simulation days** (1–30).
   Six residents review plans hourly: 144 model requests per day, **1,440 for ten days**, with no

@@ -142,7 +142,13 @@ export class CodexClient extends EventEmitter {
     }
     if (msg.id !== undefined && this.pending.has(msg.id)) {
       const p = this.pending.get(msg.id); this.pending.delete(msg.id); clearTimeout(p.timer);
-      if (msg.error) { this.onDiagnostic({ event: 'codex_rpc_failed', phase: this.phase, ...providerFailure(msg.error.data?.codexErrorInfo) }); this.lastError = rpcFailure(msg.error, p.method); p.reject(new Error(this.lastError)); }
+      if (msg.error) {
+        const detail = providerFailure(msg.error.data?.codexErrorInfo);
+        this.onDiagnostic({ event: 'codex_rpc_failed', phase: this.phase, ...detail });
+        this.lastError = rpcFailure(msg.error, p.method);
+        const error = new Error(this.lastError); error.diagnosticCode = detail.providerCode === 'unknown' ? undefined : detail.providerCode;
+        error.httpStatusCode = detail.httpStatusCode; p.reject(error);
+      }
       else p.resolve(msg.result); return;
     }
     const p = msg.params || {};
@@ -155,8 +161,15 @@ export class CodexClient extends EventEmitter {
     if (msg.method === 'error') {
       this.onDiagnostic({ event: 'provider_error', phase: this.phase, ...providerFailure(p.error?.codexErrorInfo), willRetry: Boolean(p.willRetry) });
     }
-    if (msg.method === 'item/completed' && p.item?.type === 'agentMessage') this.active.text = p.item.text;
-    if (msg.method === 'thread/tokenUsage/updated') this.active.usage = p.tokenUsage?.last || p.tokenUsage?.total || {};
+    if (msg.method === 'item/completed' && p.item?.type === 'agentMessage') {
+      this.active.text = p.item.text; this.active.messageReceived = true;
+      this.onDiagnostic({ event: 'inference_progress', phase: 'agent_message_complete', messageReceived: true });
+    }
+    if (msg.method === 'thread/tokenUsage/updated') {
+      this.active.usage = p.tokenUsage?.last || p.tokenUsage?.total || {};
+      if (!this.active.usageReceived) this.onDiagnostic({ event: 'inference_progress', phase: 'usage_received', usageReceived: true });
+      this.active.usageReceived = true;
+    }
     if (msg.method === 'turn/completed') {
       if (p.turn.status === 'completed') this.active.resolve({ text: this.active.text, usage: this.active.usage });
       else {
@@ -164,6 +177,7 @@ export class CodexClient extends EventEmitter {
         this.onDiagnostic({ event: 'provider_turn_failed', phase: this.phase, ...detail });
         const error = new Error('Model turn failed or was interrupted; check subscription limits');
         error.diagnosticCode = detail.providerCode === 'unknown' ? 'provider_turn_failed' : detail.providerCode;
+        error.httpStatusCode = detail.httpStatusCode;
         this.active.reject(error);
       }
     }
@@ -245,7 +259,10 @@ export class CodexClient extends EventEmitter {
     let timer;
     const done = new Promise((resolvePromise, reject) => {
       this.active = { threadId, resolve: resolvePromise, reject, text: '', usage: {} };
-      timer = setTimeout(() => reject(new Error('Villager decision timed out; run paused')), this.timeout);
+      timer = setTimeout(() => {
+        this.onDiagnostic({ event: 'decision_timeout', phase: this.phase, messageReceived: Boolean(this.active?.messageReceived), usageReceived: Boolean(this.active?.usageReceived) });
+        const error = new Error('Villager decision timed out'); error.diagnosticCode = 'timeout'; reject(error);
+      }, this.timeout);
     });
     done.catch(() => {});
     // Install completion listeners before sending the turn, including fast local responses.

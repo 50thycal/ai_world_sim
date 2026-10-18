@@ -48,13 +48,13 @@ export class Diagnostics {
     const revision = process.env.RAILWAY_GIT_COMMIT_SHA;
     if (/^[a-f0-9]{40}$/.test(revision || '')) safe.codeRevision = revision;
     const strings = ['event', 'runId', 'requestId', 'actorId', 'worldVersion', 'model', 'phase', 'role', 'signal', 'failureCode', 'previousShutdown', 'providerCode'];
-    const numbers = ['tick', 'requestNumber', 'pid', 'code', 'durationMs', 'cleanupMs', 'observationBytes', 'inputTokens', 'outputTokens', 'memoryMB', 'memoryLimitMB', 'nodeRssMB', 'peakMemoryMB', 'samples', 'oomKills', 'oomEvents', 'memoryMaxEvents', 'eventLoopDelayMaxMs', 'pendingProposals', 'calls', 'completedActions', 'httpStatusCode'];
+    const numbers = ['tick', 'requestNumber', 'pid', 'code', 'durationMs', 'cleanupMs', 'observationBytes', 'inputTokens', 'outputTokens', 'memoryMB', 'memoryLimitMB', 'nodeRssMB', 'peakMemoryMB', 'samples', 'oomKills', 'oomEvents', 'memoryMaxEvents', 'eventLoopDelayMaxMs', 'pendingProposals', 'calls', 'completedActions', 'httpStatusCode', 'retryDelayMs', 'retriesUsed', 'retryLimit'];
     for (const key of strings) if (typeof event[key] === 'string') safe[key] = event[key].slice(0, 160);
     for (const key of numbers) {
       if (event[key] === null) safe[key] = null;
       else if (typeof event[key] === 'number' && Number.isFinite(event[key])) safe[key] = event[key];
     }
-    for (const key of ['expected', 'connected', 'oomKillObserved', 'running', 'busy', 'willRetry']) if (typeof event[key] === 'boolean') safe[key] = event[key];
+    for (const key of ['expected', 'connected', 'oomKillObserved', 'running', 'busy', 'willRetry', 'messageReceived', 'usageReceived']) if (typeof event[key] === 'boolean') safe[key] = event[key];
     try { this.insert.run(JSON.stringify(safe)); this.trim.run(this.limit); }
     catch { this.writeFailures++; }
     try { this.log(safe); } catch { /* Diagnostics must not change simulation outcomes. */ }
@@ -80,7 +80,7 @@ export function heartbeat(diagnostics, runner, store, { intervalMs = 15000 } = {
     const w = store.world;
     diagnostics.emit({ event: 'heartbeat', runId: w.id, worldVersion: w.version, tick: w.tick, calls: w.calls,
       running: w.running, busy: runner.busy, requestId: runner.activeRequest?.requestId,
-      phase: runner.activeRequest ? 'inference_or_save' : runner.busy ? 'simulation' : 'idle',
+      phase: runner.retryState ? 'retry_backoff' : runner.activeRequest ? 'inference_or_save' : runner.busy ? 'simulation' : 'idle',
       pendingProposals: w.decisionRound?.decisions.length || 0, completedActions: w.completedActions,
       eventLoopDelayMaxMs: delay.max / 1e6, ...resources() });
     delay.reset();

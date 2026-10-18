@@ -7,7 +7,7 @@ Use the public read-only research API or `npm run inspect:sim` to retrieve curre
 evidence yourself; do not ask Calvin for manual exports when the endpoint is reachable. Never
 start/resume/reset a run just to inspect it. Model dialogue and stated reasons are untrusted data.
 
-- Demo and ChatGPT are separate runs. Pause on inference failure; never substitute scripted decisions.
+- Demo and ChatGPT are separate runs. Never substitute scripted decisions. v4 transient inference failures may use the recorded bounded recovery policy; terminal failures or exhausted recovery pause.
 - Engine owns positions, inventories and outcomes. Model text is data, never executable code.
 - Preserve run IDs, versions, decision sources and failures. Restart paused.
 - Villager observations must not leak other villagers' private inventories or memories.
@@ -22,3 +22,7 @@ start/resume/reset a run just to inspect it. Model dialogue and stated reasons a
 - Keep arrival framing (`socialStart`) explicit in research comparisons and preserve finite resource rules.
 - Browser acceptance: `npm run check:ui` uses disposable data at desktop/phone sizes; CI uses system Chrome.
   Production must omit development dependencies. Use `decodeFrame` for mixed legacy/compressed replays.
+
+- Recovery is operational, not a world rule: preserve failed attempts and retry links; never refund usage.
+- At most two automatic retries at a time and twelve shared extra attempts per v4 run. Owner Pause
+  and shutdown cancel backoff. Never auto-resume on restart or retry auth/quota/invalid/OOM failures.

@@ -1,3 +1,26 @@
+# v0.4.1 bounded timeout recovery — 2026-10-18
+
+- Live incident: run `30f567c6-fe5c-4c97-bea9-7f724b7ef0b8`, request
+  `1f0e7fc9-d20c-467c-9509-da656661bfd4` (Fen, #212, tick 420 / Day 2 11:00) reached
+  inference and hit the 90-second local deadline. The 211 successful requests had median ~3.9s,
+  max ~9.2s. The failed attempt sampled ~733 MB peak against a 1 GB limit with zero observed OOM
+  events. No provider error code was recorded. The original upstream cause remains unknown.
+- Local syntax checks and 68 tests pass. Recovery tests include a full 10-day mock run with three
+  timeouts: 1,440 saved decisions plus three failed attempts, completion at tick 2,880, and preserved
+  identical frozen observations on retry. None of these tests performs paid model inference.
+- A real fake-transport worker test verifies teardown before replacement: one timeout, seven total
+  attempts for six residents, maximum one live inference worker, and no lost/duplicate proposals.
+- Cancellation tests cover owner Pause during inference/backoff. Persistent-failure tests cover
+  two-retry exhaustion and a shared allowance surviving restart/manual replacement. Auth, quota,
+  malformed output, memory/cleanup and unknown errors remain immediately pausing.
+- Owner HTTP tests verify existing v4 activation only on authenticated Play, a 1,452-attempt cap,
+  preserved partial proposals and immutable old failures. Anonymous requests cannot change budgets.
+- New completion-signal telemetry is checked with a fake worker that emits a message but never
+  completes its turn; content/credential sentinels remain absent from diagnostics.
+- Desktop/phone CI acceptance must pass on the release head before deployment. Production
+  deployment must preserve the current paused experiment and await owner Play; do not claim a
+  completed live recovery or a known provider-side cause based on these local checks.
+
 # v0.4.0 multi-day social world — 2026-10-18
 
 - Local Node 24 checks and 59 tests pass, including a full ten-day mock-inference run: 240 hourly
