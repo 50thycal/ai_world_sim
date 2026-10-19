@@ -1,6 +1,7 @@
+import { hasVillage, VILLAGE_VERSION, VILLAGE_ITEMS } from './village.js';
 // The engine owns every coin, escrow item and outcome. No model text executes here.
 export const ECONOMY_VERSION = 'world-v5';
-export const hasEconomy = w => w.version === ECONOMY_VERSION && w.economy?.version === 1;
+export const hasEconomy = w => [ECONOMY_VERSION, VILLAGE_VERSION].includes(w.version) && w.economy?.version === 1;
 export const MARKET_ACTIONS = ['craft', 'offer', 'buy', 'cancel_offer'];
 export const MARKET_ITEMS = ['meal', 'raw', 'wood', 'tool'];
 const ROLES = ['grower', 'woodcutter', 'cook', 'craftsperson', 'grower', 'woodcutter'];
@@ -37,7 +38,7 @@ export function useTool(w, a) {
   if (a.toolUses > 0) a.toolUses--;
 }
 export const cookYield = (w, a) => hasEconomy(w) ? a.profession === 'cook' ? w.economy.rules.specialistCook : w.economy.rules.baseCook : 2;
-export const craftCost = (w, a) => a.profession === 'craftsperson' ? w.economy.rules.specialistCraftWood : w.economy.rules.craftWood;
+export const craftCost = (w, a) => hasVillage(w) && w.village.projects.workshop.completedAt !== null ? 1 : a.profession === 'craftsperson' ? w.economy.rules.specialistCraftWood : w.economy.rules.craftWood;
 
 export function economyObservation(w, a) {
   const r = w.economy.rules;
@@ -58,9 +59,10 @@ export function economyObservation(w, a) {
 }
 
 export function marketPlanProblem(w, a, d) {
+  if (hasVillage(w) && !MARKET_ACTIONS.includes(d.action)) return null;
   if (!MARKET_ACTIONS.includes(d.action)) return d.price !== 0 || d.offerId !== 0 ? 'price and offerId must be 0 outside market actions' : null;
-  if (d.action === 'offer' && (!MARKET_ITEMS.includes(d.item) || d.price < 1 || d.offerId !== 0)) return 'offer needs a carried item, price 1–12 and offerId 0';
-  if (d.action === 'buy' && (!w.agents.some(b => b.id === d.target && b.id !== a.id) || !MARKET_ITEMS.includes(d.item) || d.offerId < 1 || d.price < 1)) return 'buy needs another seller, exact offerId, item and price';
+  if (d.action === 'offer' && (![...MARKET_ITEMS, ...(hasVillage(w) ? VILLAGE_ITEMS : [])].includes(d.item) || d.price < 1 || d.offerId !== 0)) return 'offer needs a carried item, price 1–12 and offerId 0';
+  if (d.action === 'buy' && (!w.agents.some(b => b.id === d.target && b.id !== a.id) || ![...MARKET_ITEMS, ...(hasVillage(w) ? VILLAGE_ITEMS : [])].includes(d.item) || d.offerId < 1 || d.price < 1)) return 'buy needs another seller, exact offerId, item and price';
   if (d.action === 'craft' && (d.item !== 'tool' || d.price !== 0 || d.offerId !== 0)) return 'craft needs item tool, price 0 and offerId 0';
   if (d.action === 'cancel_offer' && (d.item !== 'none' || d.price !== 0 || d.offerId < 1)) return 'cancel_offer needs your offerId, item none and price 0';
   return null;
@@ -115,5 +117,5 @@ export function economyMetrics(w) {
   return { trades: w.economy.stats.trades, coinsTraded: w.economy.stats.coinsTraded,
     toolsCrafted: w.economy.stats.toolsCrafted, toolsUsed: w.economy.stats.toolsUsed,
     offersPosted: w.economy.stats.offersPosted, activeOffers: w.economy.offers.length,
-    coins: w.agents.reduce((n, a) => n + a.coins, 0) };
+    coins: w.agents.reduce((n, a) => n + a.coins, 0) + (hasVillage(w) ? w.village.requests.reduce((n,r) => n+r.price,0) : 0) };
 }

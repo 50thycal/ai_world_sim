@@ -3,10 +3,10 @@ let current, displayed, previous, receivedAt = 0, selected = 'v1', showLabels = 
 const canvas = $('village'), ctx = canvas.getContext('2d');
 const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const time = tick => `${String(Math.floor(tick * 5 / 60) % 24).padStart(2, '0')}:${String(tick * 5 % 60).padStart(2, '0')}`;
-const hourlyRun = w => ['world-v2', 'world-v3', 'world-v4', 'world-v5'].includes(w?.version);
-const VERBS = { gather: 'Gathering', give: 'Giving', steal: 'Stealing', take: 'Taking', talk: 'Talking', craft: 'Making tools', offer: 'Listing goods', buy: 'Shopping', cancel_offer: 'Collecting goods', invalid: 'Confused' };
+const hourlyRun = w => ['world-v2', 'world-v3', 'world-v4', 'world-v5', 'world-v6'].includes(w?.version);
+const VERBS = { gather: 'Gathering', give: 'Giving', steal: 'Stealing', take: 'Taking', talk: 'Talking', craft: 'Making tools', offer: 'Listing goods', buy: 'Shopping', cancel_offer: 'Collecting goods', request: 'Posting a need', fulfill: 'Making a delivery', request_cooking: 'Hiring a cook', fulfill_cooking: 'Cooking for a neighbor', contribute: 'Supplying a project', build: 'Building', request_work: 'Hiring help', fulfill_work: 'Working for a neighbor', craft_bed: 'Making a bed', craft_furnishing: 'Making furnishings', furnish: 'Improving a home', socialize: 'At the green', host_meal: 'Hosting a meal', attend: 'Sharing a meal', invalid: 'Confused' };
 const ICONS = { give: '🎁', steal: '✋', take: '🥣', talk: '💬', craft: '🛠', offer: '🏷', trade: '🤝', offer_expired: '↩' };
-const DILEMMAS = ['give', 'steal', 'take', 'share', 'blocked', 'failure', 'offer', 'trade', 'cancel_offer', 'offer_expired', 'craft'];
+const DILEMMAS = ['give', 'steal', 'take', 'share', 'blocked', 'failure', 'offer', 'trade', 'cancel_offer', 'offer_expired', 'craft', 'request_posted', 'request_filled', 'cooking_service', 'work_contract', 'project_work', 'project_completed', 'home_improved', 'socialize', 'shared_meal', 'gathering_posted'];
 const professionName = role => ({ grower: 'Grower', woodcutter: 'Woodcutter', cook: 'Cook', craftsperson: 'Craftsperson' }[role] || role);
 // Static copy keyed by scenario id; never interpolates run data into HTML.
 const QUESTIONS = { sustainable: 'Who keeps supplies<br>moving?<br>Can cooperation<br>last ten days?', plenty: 'Who gathers?<br>Who cooks?<br>Who leaves a little<br>for someone else?', commons: 'Who holds back?<br>Who strips the trees?<br>Does anyone<br>say “enough”?', inequality: 'Do the haves<br>share?<br>Do the have-nots<br>ask, or take?' };
@@ -23,12 +23,40 @@ function renderEconomy(w, a) {
   $('market-section').hidden = !w.economy;
   if (!w.economy) return;
   const m = w.economy;
-  $('market-summary').textContent = `${m.stats.trades} trades · ${m.stats.coinsTraded} coins exchanged · ${m.stats.toolsCrafted} tools made · ${w.agents.reduce((n, b) => n + b.coins, 0)} coins circulating`;
+  $('market-summary').textContent = `${m.stats.trades} trades · ${m.stats.coinsTraded} coins exchanged · ${m.stats.toolsCrafted} tools made · ${w.agents.reduce((n, b) => n + b.coins, 0) + (w.village?.requests.reduce((n,r) => n+r.price,0) || 0)} coins total${w.village ? " (including reserved payment)" : " circulating"}`;
   $('market-roles').innerHTML = w.agents.map(b => `<div><strong>${escape(b.name)}</strong><span>${escape(professionName(b.profession))}</span></div>`).join('');
   $('market-offers').innerHTML = m.offers.map(o => `<article class="offer-card"><p class="eyebrow">${escape(o.seller)} · OFFER #${o.id}</p><h3>1 ${escape(o.item)}</h3><strong>${o.price} coins</strong><p>Returns in ${Math.max(0, Math.ceil((o.expiresAt - w.tick) * 5 / 60))} hours</p></article>`).join('') || '<p class="empty">The stalls are quiet. Residents can bring goods to sell here.</p>';
   $('market-trades').innerHTML = m.trades.slice(-8).reverse().map(t => `<div class="memory">D${Math.floor(t.tick / 288) + 1} ${time(t.tick)} · <b>${escape(nameOf(w, t.buyerId))}</b> bought 1 ${escape(t.item)} from ${escape(nameOf(w, t.sellerId))} for ${t.price} coins.</div>`).join('') || '<p class="hint">Accepted trades will appear here. Residents choose whether to buy.</p>';
   $('market-days').innerHTML = (replay ? [] : current.daySummaries || []).filter(d => d.daily.trades !== undefined).map(d => `<tr><th>${d.day}</th><td>${d.daily.trades}</td><td>${d.daily.coinsTraded}</td><td>${d.daily.toolsCrafted}</td><td>${d.daily.offersPosted}</td></tr>`).join('');
   $('inspector').innerHTML += `<p class="eyebrow">LIVELIHOOD</p><p><strong>${escape(professionName(a.profession))}</strong> · ${a.coins} coins</p><div class="inventory"><span>${a.inventory.tool} unused tools</span><span>${a.toolUses} tool uses left</span><span>${a.economicStats.bought} purchases · ${a.economicStats.sold} sales</span></div><p class="hint">Everyone can do every job. Specialties improve output; six successful jobs make a skill quicker.</p>${Object.entries(a.skills).map(([role, xp]) => `<div class="skill-row"><span>${escape(professionName(role))}</span><span>${xp} jobs${xp >= m.rules.practiceThreshold ? ' · practiced' : ''}</span></div>`).join('')}`;
+}
+function renderVillage(w, a) {
+  $('village-section').hidden = !w.village;
+  if (w.village) {
+    const v = w.village;
+    $('village-summary').textContent = `${v.stats.requestsFilled} needs met · ${v.stats.cookingServices} cooking services · ${v.stats.projectsCompleted}/3 projects complete · ${v.stats.homesImproved} home improvements · ${v.stats.sharedMeals} shared meals`;
+    $('village-requests').innerHTML = v.requests.map(r => `<article class="offer-card"><p class="eyebrow">${escape(r.owner)} · REQUEST #${r.id}</p><h3>${escape(r.type === 'request_cooking' ? 'Cook my ingredients' : r.type === 'request_work' ? 'Work on ' + r.projectId : 'Bring 1 ' + r.item)}</h3><strong>${r.price ? r.price + ' reserved coins' : 'Share the cooked meals'}</strong><p>Expires in ${Math.max(0,Math.ceil((r.expiresAt-w.tick)/12))} hours</p></article>`).join('') || '<p class="empty">No open requests. Residents can post funded needs here.</p>';
+    $('village-projects').innerHTML = Object.values(v.projects).map(p => `<article class="offer-card"><h3>${escape(p.name)}</h3><p>${p.completedAt === null ? `${p.wood}/${p.woodNeeded} wood · ${p.work}/${p.workNeeded} work` : 'Complete'}</p><p>${escape(p.benefit)}</p></article>`).join('');
+    $('village-gatherings').innerHTML = v.gatherings.map(g => `<article class="offer-card"><h3>${escape(g.host)} is hosting</h3><p>One meal waiting at the green · ${Math.max(0,Math.ceil((g.expiresAt-w.tick)*5))} minutes left</p></article>`).join('') || '<p class="hint">Neighbors can gather for leisure or invite someone to a shared meal.</p>';
+    $('village-exchanges').innerHTML = v.exchanges.slice(-8).reverse().map(e => `<div class="memory">D${Math.floor(e.tick/288)+1} ${time(e.tick)} · ${escape(nameOf(w,e.actorId))} completed ${escape(e.requestType.replaceAll('_',' '))} for ${escape(nameOf(w,e.targetId))} · ${e.price} coins</div>`).join('') || '<p class="hint">Completed deliveries and services appear here.</p>';
+    $('inspector').innerHTML += `<p class="eyebrow">HOME &amp; LIFE</p><p>${Math.round(a.satisfaction)}/100 satisfaction · ${a.home.bed ? 'Better bed' : 'Basic sleeping space'} · ${a.home.furnishing ? 'Furnished' : 'Unfurnished'}</p><p class="hint">${a.inventory.bed} beds and ${a.inventory.furnishing} furnishings carried. Satisfaction is a quality-of-life measure, not health or trust. Spare tools equip automatically on harvest.</p>`;
+  }
+  const b = current.batch;
+  $('batch-section').hidden = !b;
+  if (!b) return;
+  $('batch-summary').textContent = `${b.completedRuns}/${b.count} complete · ${b.status} · ${b.pendingRuns} waiting to begin${b.reason ? ' · ' + b.reason : ''}`;
+  $('batch-section').querySelector('h2').textContent = `${b.count} villages, fresh beginnings`;
+  $('batch-rows').innerHTML = b.runs.map(r => `<tr><th><button class="quiet" data-run="${escape(r.id)}">${r.index}</button></th><td>${escape(r.status)}${r.status === 'paused' ? ' · ' + escape(r.pauseReason) : ''}</td><td>${r.failures}</td>${['trades','requestsFilled','cookingServices','projectsCompleted','homesImproved','starvingHours','lowestHealth'].map(k => `<td>${r.metrics?.[k] ?? '—'}</td>`).join('')}<td><a href="${escape(r.report)}" target="_blank" rel="noopener">Evidence ↗</a></td></tr>`).join('');
+  $('batch-aggregate').textContent = b.completedRuns ? ['requestsFilled','projectsCompleted','starvingHours','lowestHealth'].filter(k => b.aggregate[k]).map(k => `${({requestsFilled:'Needs met',projectsCompleted:'Projects',starvingHours:'Starving hours',lowestHealth:'Lowest health'})[k]}: mean ${b.aggregate[k].mean}, range ${b.aggregate[k].min}–${b.aggregate[k].max}`).join(' · ') : 'Averages and ranges appear as runs finish.';
+  $('batch-rows').querySelectorAll('[data-run]').forEach(button => button.onclick = async () => {
+    const sequence = ++replaySequence;
+    try {
+      const r = await api('/api/research/runs/' + button.dataset.run);
+      if (sequence !== replaySequence) return;
+      replay = true; previous = null; displayed = { world: r.world, metrics: r.run.metrics, places: current.places };
+      $('timeline').disabled = true; render(); $('run-version').scrollIntoView({block:'center',behavior:'smooth'});
+    } catch (e) { toast(e.message); }
+  });
 }
 function render() {
   if (!displayed) return;
@@ -56,6 +84,7 @@ function render() {
   const a = w.agents.find(x => x.id === selected);
   $('inspector').innerHTML = `<h3>${a.name}’s day</h3><div class="needs">${[['Hunger', a.hunger], ['Energy', a.energy], ['Health', a.health]].map(([n, v]) => `<div><div class="need"><span>${n}</span><span>${Math.round(v)} / 100</span></div><div class="meter"><span data-width="${v}"></span></div></div>`).join('')}</div><div class="inventory"><span>${a.inventory.raw} ingredients</span><span>${a.inventory.wood} wood</span><span>${a.inventory.meal} meals</span></div>${a.persona ? `<p class="temperament">${escape(a.persona)}</p>` : ''}<p class="eyebrow">STATED REASON</p><p class="stated">${escape(a.lastReason || 'A new day. Nothing decided yet.')}</p>${a.stats ? `<p class="eyebrow">BEHAVIOR RECORD</p><div class="behavior">${[['Gave', a.stats.gave], ['Received', a.stats.received], ['Stole', a.stats.stole], ['Robbed', a.stats.robbed], ['To pantry', a.stats.shared], ['From pantry', a.stats.took], ['Spoke', a.stats.talked], ['Starving h', Math.round(a.stats.starvingTicks / 12 * 10) / 10]].map(([n, v]) => `<span><b>${v}</b>${n}</span>`).join('')}</div>` : ''}${a.plans?.length ? `<p class="eyebrow">HOURLY PLANS</p>${a.plans.slice(-3).reverse().map(p => `<div class="memory"><b>D${Math.floor(p.tick/288)+1} ${time(p.tick)} · ${escape(p.action)}${p.target !== 'none' ? ' → ' + escape(nameOf(w, p.target)) : ''}${p.item && p.item !== 'none' ? ' (' + escape(p.item) + ')' : ''}</b><br>${escape(p.reason)}</div>`).join('')}` : ''}<p class="eyebrow">RECENT MEMORIES</p>${a.memories.slice(-3).reverse().map(m => `<div class="memory">D${Math.floor(m.tick/288)+1} ${time(m.tick)} · ${escape(m.text)}</div>`).join('') || '<p class="hint">Memories form from events within hearing range.</p>'}`;
   renderEconomy(w, a);
+  renderVillage(w, a);
   if (a.relationships) {
     const people = Object.values(a.relationships);
     $('inspector').innerHTML += `<p class="eyebrow">SOCIAL NOTEBOOK · PRIVATE TO ${escape(a.name.toUpperCase())}</p><p class="hint">Witnessed encounters; trust is the resident’s judgment.</p>${people.map(p => `<div class="memory"><b>${escape(p.name)}</b> · heard ${p.heardMessages} messages · received ${p.giftsReceived} gifts · robbed ${p.theftsSuffered} times${p.firstWords ? '<br>First words heard: ' + escape(p.firstWords.text) : ''}${p.lastWords && p.lastWords.tick !== p.firstWords?.tick ? '<br>Latest words heard: ' + escape(p.lastWords.text) : ''}${p.recentEvents.slice(-2).map(e => '<br>D' + (Math.floor(e.tick/288)+1) + ' ' + time(e.tick) + ' · ' + escape(e.text)).join('')}</div>`).join('') || '<p class="hint">No encounters recorded yet. Everyone begins as a stranger.</p>'}`;
@@ -123,6 +152,7 @@ function draw(now) {
   const square=xy(8,12);ctx.fillStyle='#acbb8d';ctx.beginPath();ctx.ellipse(square.x,square.y,50,33,0,0,7);ctx.fill();
   if(w.economy){for(const dx of [-35,35]){ctx.fillStyle='#9b7855';ctx.fillRect(square.x+dx-16,square.y-27,32,25);ctx.fillStyle=dx<0?'#ba865d':'#7d9572';ctx.fillRect(square.x+dx-20,square.y-35,40,12);ctx.fillStyle='#e9d6b5';ctx.fillRect(square.x+dx-12,square.y-35,8,12);ctx.fillRect(square.x+dx+4,square.y-35,8,12);}}
   for(const dx of [-36,35]){ctx.fillStyle='#99815b';ctx.fillRect(square.x+dx-12,square.y-6,25,7);ctx.fillRect(square.x+dx-10,square.y+1,4,7);ctx.fillRect(square.x+dx+7,square.y+1,4,7);}
+  if(w.village){for(const p of Object.values(w.village.projects)){const place=places[p.site],pt=xy(place.x,place.y);ctx.fillStyle=p.completedAt!==null?'#547c54':'#b79052';ctx.fillRect(pt.x+35,pt.y-20,12,12);if(showLabels)tag(p.completedAt!==null?'Built':'Work '+p.work+'/'+p.workNeeded,pt.x,pt.y+65);}}
   const stock = { orchard: ` · ${w.resources.food}`, forest: ` · ${w.resources.wood}`, pantry: ` · ${w.pantry}` };
   if (showLabels) for(const [key,place]of Object.entries(places)){const p=xy(place.x,place.y);tag((w.economy&&key==='square'?'Market & workbench':place.name)+(stock[key]||''),p.x,p.y+(key==='forest'?26:35));}
   const t = replay || matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : Math.min(1, (now - receivedAt) / 850);
@@ -149,7 +179,7 @@ let accountLoading=false, actionPending=false, pendingActions=0;
 function ownerMessage(message, failed=false){const el=$('owner-message');el.textContent=message;el.classList.toggle('error',failed);}
 
 $('timeline').oninput=async e=>{const f=frames[Number(e.target.value)];if(!f)return;const sequence=++replaySequence;try{const frame=await api('/api/frame/'+f.id);if(sequence!==replaySequence)return;replay=true;previous=null;displayed=frame;render();}catch(err){toast(err.message);}};
-$('return-live').onclick=()=>{replaySequence++;replay=false;previous=null;displayed=current;render();};
+$('return-live').onclick=()=>{$('timeline').disabled=false;replaySequence++;replay=false;previous=null;displayed=current;render();};
 async function account(){
   if(accountLoading)return;
   accountLoading=true;
@@ -174,7 +204,8 @@ async function action(name,data={}){
   ownerMessage(name==='connect'?'Requesting your OpenAI sign-in code…':name==='step'?'Waiting for the village’s decisions…':'Working…');
   try{
     await api('/api/admin/'+name,data);
-    ownerMessage(name==='connect'?'Open OpenAI sign-in below and enter the displayed code.':name==='new'?'New run ready. Press Play village to begin.':name==='run'?'Village running. Close this panel to watch.':name==='pause'?'Village paused.':'Done.');
+    if(name==='new'){replaySequence++;replay=false;$('timeline').disabled=false;previous=null;}
+    ownerMessage(name==='connect'?'Open OpenAI sign-in below and enter the displayed code.':name==='new'?'Batch ready. Press Play village / batch to begin.':name==='run'?'Village running. Close this panel to watch.':name==='pause'?'Village paused.':'Done.');
     await account();await poll();await loadFrames();
     if(name==='connect' && !$('device-login').hidden)$('device-login').scrollIntoView({block:'nearest',behavior:'smooth'});
   }catch(e){ownerMessage(e.message,true);if(name==='connect')$('account-status').textContent=e.message;}
@@ -189,10 +220,11 @@ $('refresh-account').onclick=async()=>{
   try{const s=await account();if(s)ownerMessage(s.connected?'ChatGPT is connected.':s.login?.userCode?'Sign-in is waiting for your approval using the code below.':'No ChatGPT account connected yet. Choose Connect ChatGPT.');}
   finally{button.disabled=false;button.textContent='Refresh';}
 };
-function updateBudget(){const days=Number($('days').value);$('run-budget').textContent=Number.isInteger(days)&&days>=1&&days<=30?`${days} days · ${(days*144).toLocaleString()} planned + 12 retries · up to ${(days*144+12).toLocaleString()} model requests. Scripted demo makes no model requests.`:'Choose 1–30 whole days.';}
-$('days').oninput=updateBudget;
-$('economy').onchange=()=>{if($('economy').checked)$('scenario').value='sustainable';};
-$('new-run').onclick=()=>{const days=Number($('days').value);if(!Number.isInteger(days)||days<1||days>30){ownerMessage('Choose 1–30 whole days.',true);return;}if($('economy').checked&&$('scenario').value!=='sustainable'){ownerMessage('Choose Renewable village for the economy experiment.',true);return;}return action('new',{mode:$('new-mode').value,model:$('model').value,scenario:$('scenario').value,economy:$('economy').checked===true,personas:$('personas').checked,days,socialStart:$('social-start').checked});};
+function updateBudget(){const days=Number($('days').value), count=Number($('run-count').value || 5);$('run-budget').textContent=Number.isInteger(days)&&days>=1&&days<=30&&Number.isInteger(count)&&count>=1&&count<=10?`${count} separate runs × ${days} days · ${(count*days*144).toLocaleString()} planned + ${count*12} retries · up to ${(count*(days*144+12)).toLocaleString()} model requests. Runs execute in series. Scripted demo makes no model requests.`:'Choose 1–30 whole days and 1–10 separate runs.';}
+$('days').oninput=updateBudget; $('run-count').oninput=updateBudget;
+$('village-life').onchange=()=>{if($('village-life').checked){$('economy').checked=true;$('scenario').value='sustainable';}};
+$('economy').onchange=()=>{if($('economy').checked)$('scenario').value='sustainable';else $('village-life').checked=false;};
+$('new-run').onclick=()=>{const days=Number($('days').value), runCount=Number($('run-count').value || 5);if(!Number.isInteger(days)||days<1||days>30||!Number.isInteger(runCount)||runCount<1||runCount>10){ownerMessage('Choose 1–30 whole days and 1–10 separate runs.',true);return;}if(($('economy').checked||$('village-life').checked)&&$('scenario').value!=='sustainable'){ownerMessage('Choose Renewable village for the economy experiment.',true);return;}return action('new',{mode:$('new-mode').value,model:$('model').value,scenario:$('scenario').value,economy:$('economy').checked===true,village:$('village-life').checked===true,runCount,personas:$('personas').checked,days,socialStart:$('social-start').checked});};
 for(const b of document.querySelectorAll('[data-filter]'))b.onclick=()=>{journalFilter=b.dataset.filter;for(const x of document.querySelectorAll('[data-filter]'))x.setAttribute('aria-pressed',String(x===b));render();};
 async function init(){const params=new URLSearchParams(location.hash.slice(1));const token=params.get('setup');if(token){history.replaceState(null,'',location.pathname);try{await api('/api/claim',{token});toast('Owner access connected on this device.');owner=true;}catch(e){toast(e.message);}}await poll();await loadFrames();if(owner)$('manage').click();}
 init();requestAnimationFrame(draw);setInterval(poll,1000);setInterval(loadFrames,6000);setInterval(()=>{if(owner&&$('owner-dialog').open&&!actionPending)account();},5000);
