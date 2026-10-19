@@ -79,6 +79,42 @@ diagnostics or a counter reset after a container replacement does not prove a cl
    retrieval UTC, run/request IDs, versions and coverage limits. Different conditions or versions and
    a single run cannot establish causality; reported tokens are not exact billing.
 
+## Cooperative village and replication batches (app v0.6.0)
+
+`world-v6` explicitly opts into `villageVersion: 1` as well as the v5 economy. Saved v4/v5 runs
+are not migrated. `world.village` retains funded requests, public projects, gatherings, the latest
+24 completed service/delivery exchanges and counters. Full outcomes persist in scientific records:
+`request_posted`, `request_filled`, `request_expired`, `cancel_request`, `cooking_service`,
+`work_contract`, `contribute`, `project_work`, `project_completed`, `home_crafted`, `home_improved`,
+`socialize`, `gathering_posted`, `gathering_expired`, `shared_meal`. Provider inference still uses
+record kind `request`; these two types of request are deliberately distinct. Proposed actions do not
+count as completed deliveries. Project completion via a work contract is recorded on that
+`work_contract` row with `completed: true`, not a second completion action.
+
+All funded requests reserve coins. Cooking requests also reserve one raw and one wood. Coins metric
+includes wallets AND request escrow; include all escrow and gathering meals in inventory accounting.
+Successful paid cooking gives every produced meal to its requester. Free barter gives one meal to
+the requester and the remainder to its provider. The stove alternates paid/free fuel batches; a
+service's reserved unused wood returns to the requester. Installed goods and project materials are
+consumed or installed, not missing inventory. Tools are still stock-limited, and home satisfaction
+is not an independent welfare or trust measure. Daily summaries include new counters and own-home
+snapshots; the exact expanded schema and actionable spare-tool/cooking facts are saved per request.
+
+Owner creation defaults to five serial runs; API `runCount` can choose 1–10. `village: true` selects
+v6 (and implies economy + Renewable). `economy: true` alone still selects v5. Saved `world.batch`
+contains batch ID, 1-based member index and count. `GET /api/research/batches` lists retained batches;
+`GET /api/research/batches/BATCH_ID` provides settings, member run IDs, status, completed/pending counts,
+per-run metrics/evidence links, and completed-only means/min/max. A paused or failed member is never
+silently discarded or replaced. Pausing and restarts stop the queue; Play explicitly continues.
+The queue cursor and each new world's first frame commit in one SQLite transaction. A new owner-created
+batch cancels the old pending queue but retains all its started runs. Creation checks all necessary
+slots against the 20 retained-world limit. No background deletion or archive is performed.
+
+Each village starts from the same initial physical conditions with fresh IDs/memories. This tests
+repeatability within a condition, not learning, random demographic variation, or causal attribution
+among bundled changes. Scripted demos and mock-provider batches only validate engine/protocol/lifecycle;
+actual subscription inference is still required to assess model adoption, survival and coordination.
+
 ## Comparing finite and renewable conditions
 
 App v0.5.0 adds optional `world-v5`, with `economyVersion: 1` in run summaries and the entire

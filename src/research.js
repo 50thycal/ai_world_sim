@@ -1,3 +1,4 @@
+import { batchReport } from './batches.js';
 import { APP_VERSION, LATEST_VERSION, decodeFrame, metrics } from './world.js';
 import { resources } from './diagnostics.js';
 
@@ -25,7 +26,7 @@ export class Research {
       tick: w.tick, maxTicks: w.maxTicks, calls: w.calls, maxCalls: w.maxCalls,
       plannedCalls: w.plannedCalls ?? null, recovery: w.recovery ?? null, retriesUsed: w.retriesUsed ?? null,
       decisionInputVersion: w.decisionInputVersion ?? null,
-      economyVersion: w.economy?.version ?? null,
+      economyVersion: w.economy?.version ?? null, villageVersion: w.village?.version ?? null, batch: w.batch ?? null,
       inputTokens: w.inputTokens, outputTokens: w.outputTokens, completedActions: w.completedActions,
       metrics: metrics(w), recordCounts: counts,
       frames: this.db.prepare('SELECT count(*) n FROM frames WHERE run=?').get(w.id).n,
@@ -94,7 +95,7 @@ export class Research {
       format: 'ai-world-research-api-v1', appVersion: APP_VERSION, latestWorldVersion: LATEST_VERSION, codeRevision: revision(),
       access: 'Public read-only simulation evidence, matching the spectator world. No owner cookie or provider credentials required.',
       currentRunId: this.store.world.id, maxPageSize: LIMIT,
-      links: { runs: `${ROOT}/runs`, runtime: `${ROOT}/runtime`, currentReport: `${ROOT}/runs/${this.store.world.id}` },
+      links: { runs: `${ROOT}/runs`, runtime: `${ROOT}/runtime`, batches: `${ROOT}/batches`, currentReport: `${ROOT}/runs/${this.store.world.id}` },
     } };
     if (path === `${ROOT}/runtime`) return { status: 200, body: {
       format: 'ai-world-research-runtime-v1', generatedAt: new Date().toISOString(), appVersion: APP_VERSION, codeRevision: revision(),
@@ -106,6 +107,9 @@ export class Research {
     } };
     if (path === `${ROOT}/runs`) return { status: 200, body: { format: 'ai-world-research-runs-v1', generatedAt: new Date().toISOString(),
       currentRunId: this.store.world.id, runs: this.db.prepare('SELECT state,updated FROM worlds ORDER BY updated DESC,id').all().map(r => this.summary({ world: JSON.parse(r.state), updated: r.updated })) } };
+    if (path === `${ROOT}/batches`) return { status: 200, body: { batches: this.db.prepare('SELECT state FROM batches ORDER BY updated DESC,rowid DESC').all().map(r => batchReport(this.store, JSON.parse(r.state))) } };
+    const bm = path.match(/^\/api\/research\/batches\/([a-zA-Z0-9-]{1,80})$/);
+    if (bm) { const row = this.db.prepare('SELECT state FROM batches WHERE id=?').get(bm[1]); return { status: row ? 200 : 404, body: row ? batchReport(this.store, JSON.parse(row.state)) : { error: 'Batch not found' } }; }
     const match = path.match(/^\/api\/research\/runs\/([a-zA-Z0-9-]{1,80})(?:\/(records|diagnostics|frames)(?:\/(\d+))?)?$/);
     if (!match) return { status: 404, body: { error: 'Research endpoint not found' } };
     const [, id, collection, frameId] = match, row = this.world(id);

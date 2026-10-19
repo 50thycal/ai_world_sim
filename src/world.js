@@ -1,3 +1,4 @@
+import { VILLAGE_VERSION, hasVillage, addVillage, VILLAGE_ITEMS, VILLAGE_ACTIONS, PROJECTS, villageSite, villagePlanProblem, completeVillageAction, expireVillage, villageMetrics, villageObservation, cookingWood, spendCookingFuel } from './village.js';
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
@@ -9,16 +10,16 @@ import { ECONOMY_VERSION, hasEconomy, addEconomy, MARKET_ACTIONS, economyObserva
   marketPlanProblem, expireOffers, completeMarketAction, economyMetrics, productionWork, gatherYield,
   useTool, cookYield, practice, skillFor, craftCost } from './economy.js';
 
-export const APP_VERSION = '0.5.0';
+export const APP_VERSION = '0.6.0';
 export const GROUNDED_INPUT = 'current-facts-v1';
 export const VERSION = 'world-v4';
-export const LATEST_VERSION = ECONOMY_VERSION;
+export const LATEST_VERSION = VILLAGE_VERSION;
 const V3 = 'world-v3';
 const V2 = 'world-v2';
 // v2 and later share hourly decisions; v3 adds scenarios, social actions and behavior records.
-export const hourly = w => [V2, V3, VERSION, ECONOMY_VERSION].includes(w.version);
-export const isV3 = w => [V3, VERSION, ECONOMY_VERSION].includes(w.version);
-export const isV4 = w => [VERSION, ECONOMY_VERSION].includes(w.version);
+export const hourly = w => [V2, V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION].includes(w.version);
+export const isV3 = w => [V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION].includes(w.version);
+export const isV4 = w => [VERSION, ECONOMY_VERSION, VILLAGE_VERSION].includes(w.version);
 export const groundedInput = w => isV4(w) && w.decisionInputVersion === GROUNDED_INPUT;
 export const TICKS_PER_DAY = 288;
 export const DEFAULT_DAYS = 10;
@@ -63,7 +64,10 @@ export const DECISION_SCHEMA_V5 = { ...DECISION_SCHEMA_V3, properties: { ...DECI
   action: { type: 'string', enum: [...ACTIONS_V3, ...MARKET_ACTIONS] }, item: { type: 'string', enum: [...ITEMS, 'tool'] },
   price: { type: 'integer', minimum: 0, maximum: 12 }, offerId: { type: 'integer', minimum: 0, maximum: 10000 } },
   required: [...DECISION_SCHEMA_V3.required, 'price', 'offerId'] };
-export const decisionSchema = version => version === ECONOMY_VERSION ? DECISION_SCHEMA_V5
+export const DECISION_SCHEMA_V6 = { ...DECISION_SCHEMA_V5, properties: { ...DECISION_SCHEMA_V5.properties,
+  action: { type: 'string', enum: [...ACTIONS_V3, ...MARKET_ACTIONS, ...VILLAGE_ACTIONS] },
+  target: { type: 'string', enum: [...TARGETS_V3, ...Object.keys(PROJECTS)] }, item: { type: 'string', enum: [...ITEMS, 'tool', ...VILLAGE_ITEMS] } } };
+export const decisionSchema = version => version === VILLAGE_VERSION ? DECISION_SCHEMA_V6 : version === ECONOMY_VERSION ? DECISION_SCHEMA_V5
   : [V3, VERSION].includes(version) ? DECISION_SCHEMA_V3 : DECISION_SCHEMA;
 
 // Experimental conditions. Each run copies its scenario into the world so replays never depend on these constants.
@@ -94,7 +98,9 @@ const bump = (a, key, n = 1) => { if (a.stats) a.stats[key] += n; };
 const itemName = item => item === 'raw' ? 'ingredient' : item;
 export const looks = a => a.hunger >= 80 ? 'starving' : a.hunger >= 55 ? 'hungry' : a.health < 60 ? 'unwell' : a.energy < 25 ? 'exhausted' : 'well';
 
-export function newWorld(mode = 'demo', model = null, { scenario, personas = false, days = DEFAULT_DAYS, socialStart = true, economy = false } = {}) {
+export function newWorld(mode = 'demo', model = null, { scenario, personas = false, days = DEFAULT_DAYS, socialStart = true, economy = false, village = false } = {}) {
+  if (typeof village !== 'boolean') throw new Error('Choose whether to enable cooperative village life');
+  if (village) economy = true;
   if (typeof economy !== 'boolean') throw new Error('Choose whether to enable the village economy');
   scenario ??= economy ? 'sustainable' : 'plenty';
   if (economy && scenario !== 'sustainable') throw new Error('The economy experiment requires Renewable village');
@@ -103,7 +109,7 @@ export function newWorld(mode = 'demo', model = null, { scenario, personas = fal
   const s = SCENARIOS[scenario];
   validateDays(days);
   const w = {
-    version: economy ? ECONOMY_VERSION : VERSION, id: randomUUID(), created: new Date().toISOString(),
+    version: village ? VILLAGE_VERSION : economy ? ECONOMY_VERSION : VERSION, id: randomUUID(), created: new Date().toISOString(),
     mode, model, running: false, pauseReason: 'Ready for an owner to start', tick: 0,
     nextDecisionTick: 0, decisionRound: null, skippedTicks: 0,
     days, socialStart: Boolean(socialStart), decisionInputVersion: GROUNDED_INPUT,
@@ -125,14 +131,15 @@ export function newWorld(mode = 'demo', model = null, { scenario, personas = fal
     })),
   };
   if (economy) addEconomy(w);
+  if (village) addVillage(w);
   return w;
 }
 
 export function validateDecision(d, version) {
-  const v5 = version === ECONOMY_VERSION, v3 = [V3, VERSION, ECONOMY_VERSION].includes(version);
+  const v6 = version === VILLAGE_VERSION, v5 = [ECONOMY_VERSION, VILLAGE_VERSION].includes(version), v3 = [V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION].includes(version);
   if (!d || typeof d !== 'object' || Object.keys(d).sort().join(',') !== decisionSchema(version).required.toSorted().join(',') ||
-      !(v5 ? [...ACTIONS_V3, ...MARKET_ACTIONS] : v3 ? ACTIONS_V3 : ACTIONS).includes(d.action) || !(v3 ? TARGETS_V3 : TARGETS).includes(d.target) ||
-      (v3 && !(v5 ? [...ITEMS, 'tool'] : ITEMS).includes(d.item)) ||
+      !decisionSchema(version).properties.action.enum.includes(d.action) || !(v6 ? [...TARGETS_V3, ...Object.keys(PROJECTS)] : v3 ? TARGETS_V3 : TARGETS).includes(d.target) ||
+      (v3 && !(v6 ? [...ITEMS, 'tool', ...VILLAGE_ITEMS] : v5 ? [...ITEMS, 'tool'] : ITEMS).includes(d.item)) ||
       (v5 && (!Number.isInteger(d.price) || d.price < 0 || d.price > 12 || !Number.isInteger(d.offerId) || d.offerId < 0 || d.offerId > 10000)) ||
       typeof d.message !== 'string' || typeof d.reason !== 'string' ||
       d.message.length > 240 || d.reason.length > 500) throw new Error('Invalid villager decision');
@@ -180,6 +187,14 @@ export function observation(w, a) {
     o.rules = o.rules.replace('Use item none unless giving or stealing.', 'Use item none except when giving, stealing, crafting, offering or buying an item.');
     o.rules += ' In this economy, the cook produces 3 meals per raw+wood; other residents still produce 2. Growers and woodcutters gather 3 at their specialty site rather than 2. Tools add 1 per successful harvest. The meeting green also hosts the market and workbench; see economy.rules for the exact actions, prices and skill effects. Give and steal can also transfer an unused tool.';
   }
+  if (hasVillage(w)) {
+    o.village = villageObservation(w, a);
+    o.rules = o.rules.replace('Rest at the lodge restores 5 energy per five-minute tick, up to 40 per rest,', `Rest at the lodge restores ${a.home.bed ? 7 : 5} energy per five-minute tick, up to ${a.home.bed ? 56 : 40} per rest,`);
+    o.economy.rules = o.economy.rules.replace(/craft at square consumes .*?1 unused tool\./, `craft at square, item tool, price 0 and offerId 0, consumes ${craftCost(w,a)} wood and 4 energy for 1 unused tool.`);
+    o.economy.rules += ' Spare tools automatically equip on a successful harvest. See currentFacts.tools for both spare tools and equipped charges.';
+    o.rules = o.rules.replace('cook at hearth consumes 1 raw + 1 wood for 3 meals if your profession is cook, otherwise 2 meals.', 'cook at hearth consumes the current village.recipes.cooking inputs; output is 3 meals for a cook, otherwise 2.');
+    o.rules += ' Village v6 recipes and village.rules take precedence for new projects, fuel savings, home goods and service exchanges.';
+  }
   if (!groundedInput(w)) return o;
   // Old intentions/explanations are not facts about the current world. Keep them in
   // saved plans/replays, but do not feed their stale assertions back to the model.
@@ -199,6 +214,7 @@ export function observation(w, a) {
       inventory: clone(a.inventory),
       ...(hasEconomy(w) ? { profession: a.profession, coins: a.coins, toolUsesRemaining: a.toolUses,
         capabilities: clone(o.economy.capabilities), localResources: clone(o.localResources) } : {}),
+      ...(hasVillage(w) ? { tools: clone(o.village.tools), cookingRecipe: clone(o.village.recipes.cooking), home: clone(a.home), satisfaction: a.satisfaction } : {}),
       hungerScale: '0 = full; 100 = starving. Higher hunger means a greater need to eat.',
       eating: { minimumHunger: MIN_EAT_HUNGER, hungerRequirementMet: a.hunger >= MIN_EAT_HUNGER,
         reachableFoodSources: sources, canEatNow: a.hunger >= MIN_EAT_HUNGER && sources.length > 0,
@@ -217,6 +233,24 @@ export function demoDecision(w, a) {
   if (isV4(w) && w.socialStart && w.tick === 0) {
     const other = w.agents[(Number(a.id.slice(1))) % w.agents.length];
     return plan('talk', other.id, 'Scripted arrival introduction.', `I am ${a.name}. ${other.name}, what should we know about each other before we make plans?`);
+  }
+  if (hasVillage(w)) {
+    if (a.hunger >= 45 && a.inventory.meal) return plan('eat', 'none', 'Scripted meal routine.');
+    if (a.task) return plan('continue','none','Finish scripted village work.');
+    if (a.energy < 25) return plan('rest','shelter','Scripted rest routine.');
+    const need = w.village.requests.find(r => r.ownerId !== a.id && (r.type === 'request' ? a.inventory[r.item] > 1 : r.type === 'request_cooking'));
+    if (need) return { ...plan(need.type === 'request_cooking' ? 'fulfill_cooking' : 'fulfill', need.ownerId, 'Scripted demo fulfills a public need.','',need.item), price: need.price, offerId: need.id };
+    if (a.hunger >= 55 && !a.inventory.meal) return plan('eat','pantry','Scripted survival; no free food.');
+    if (!w.village.requests.some(r => r.ownerId === a.id) && !a.inventory.meal && a.inventory.raw && a.inventory.wood)
+      return plan('request_cooking','square','Scripted barter cooking request.','','meal');
+    const project = Object.values(w.village.projects).find(p => p.completedAt === null);
+    if (project && a.inventory.meal >= 2) {
+      if (project.wood < project.woodNeeded && a.inventory.wood >= 3) return plan('contribute',project.id,'Scripted surplus contribution.','','wood');
+      if (project.wood >= project.woodNeeded) return plan('build',project.id,'Scripted community work.');
+    }
+    if (a.inventory.bed && !a.home.bed) return plan('furnish','shelter','Scripted home improvement.','','bed');
+    if (a.inventory.meal >= 2 && a.inventory.wood >= 4 && !a.home.bed) return plan('craft_bed','square','Scripted home goal.','','bed');
+    if (a.inventory.meal >= 2 && a.satisfaction < 40) return plan('socialize','square','Scripted leisure.','How is everyone getting along?');
   }
   if (hasEconomy(w)) {
     if (a.hunger >= 45 && a.inventory.meal) return plan('eat', 'none', 'Scripted meal routine.');
@@ -255,7 +289,9 @@ export function assign(w, a, decision) {
   const required = { cook: 'hearth', share: 'pantry', rest: 'shelter', take: 'pantry' };
   a.lastReason = d.reason;
   if (isV3(w) && d.action !== 'continue') a.plans = [...a.plans, { tick: w.tick, action: d.action, target: d.target, item: d.item, reason: d.reason }].slice(-6);
-  const marketIssue = hasEconomy(w) ? marketPlanProblem(w, a, d) : null;
+  const villageIssue = hasVillage(w) ? (Object.hasOwn(PROJECTS, d.target) && !VILLAGE_ACTIONS.includes(d.action) ? 'project targets are only for village project actions' : villagePlanProblem(w, a, d)) : null;
+  const marketIssue = villageIssue || (hasEconomy(w) ? marketPlanProblem(w, a, d) : null);
+  if (hasVillage(w) && !VILLAGE_ACTIONS.includes(d.action) && !MARKET_ACTIONS.includes(d.action) && (d.price !== 0 || d.offerId !== 0)) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: 'ordinary actions use price 0 and offerId 0', target: null, work: 1 }; return; }
   if (marketIssue) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: marketIssue, target: null, work: 1 }; return; }
   if (hourly(w) && d.action === 'continue') {
     if (!a.task) a.task = { ...d, action: 'wait', target: null, work: 1 };
@@ -264,12 +300,12 @@ export function assign(w, a, decision) {
   const problem = isV3(w) ? planProblem(a, d) : null;
   const issue = problem;
   if (issue) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: issue, target: null, work: 1 }; return; }
-  const target = hasEconomy(w) && MARKET_ACTIONS.includes(d.action) ? 'square' : required[d.action] || (d.target === 'none' ? null : d.target);
+  const target = hasVillage(w) && VILLAGE_ACTIONS.includes(d.action) ? villageSite(w, d) : hasEconomy(w) && MARKET_ACTIONS.includes(d.action) ? 'square' : required[d.action] || (d.target === 'none' ? null : d.target);
   if (hourly(w) && a.task?.action === d.action && a.task.target === target && (a.task.item ?? 'none') === (d.item ?? 'none') &&
-      (!hasEconomy(w) || (a.task.offerId === d.offerId && a.task.price === d.price && (d.action !== 'buy' || a.task.sellerId === d.target)))) {
+      (!hasEconomy(w) || (a.task.offerId === d.offerId && a.task.price === d.price && (!VILLAGE_ACTIONS.includes(d.action) || a.task.customerId === d.target) && (d.action !== 'buy' || a.task.sellerId === d.target)))) {
     a.task.reason = d.reason; a.task.message = d.message; return;
   }
-  a.task = { ...d, ...(d.action === 'buy' ? { sellerId: d.target } : {}), target,
+  a.task = { ...d, ...(hasVillage(w) && VILLAGE_ACTIONS.includes(d.action) ? { customerId: d.target, projectId: d.target } : {}), ...(d.action === 'buy' ? { sellerId: d.target } : {}), target,
     work: d.action === 'rest' ? 8 : ['give', 'steal', 'take', 'offer', 'buy', 'cancel_offer'].includes(d.action) ? 1 : productionWork(w, a, d.action, target) };
 }
 
@@ -303,10 +339,12 @@ export function advance(w) {
     }
   };
   expireOffers(w, event);
+  expireVillage(w, event);
   if (isV3(w)) regrow(w);
   // Rotate the resolution order rather than always favoring the first villager.
   const agents = [...w.agents.slice(w.tick % 6), ...w.agents.slice(0, w.tick % 6)];
   for (const a of agents) {
+    if (hasVillage(w)) a.satisfaction = Math.max(0, a.satisfaction - (a.home.furnishing ? 0.03 : 0.06));
     a.hunger = Math.min(100, a.hunger + 0.45);
     if (a.hunger >= 95) { a.health = Math.max(1, a.health - 0.2); bump(a, 'starvingTicks'); }
     if (!a.task) continue;
@@ -318,7 +356,7 @@ export function advance(w) {
       a.energy = Math.max(0, a.energy - 0.3); continue;
     }
     if (hourly(w) && t.action === 'rest') {
-      a.energy = Math.min(100, a.energy + 5);
+      a.energy = Math.min(100, a.energy + (hasVillage(w) && a.home.bed ? 7 : 5));
       if (a.energy === 100) t.work = 1;
     }
     if (--t.work > 0) continue;
@@ -334,14 +372,19 @@ export function advance(w) {
         a.energy = Math.max(0, a.energy - 6); text = `gathered ${count} ${item === 'raw' ? 'ingredients' : 'wood'}.`; break;
       }
       case 'cook': {
-        if (!bag.raw || !bag.wood || a.energy < 5) { text = 'could not cook: needs ingredients, wood and energy.'; failed = true; break; }
+        const woodCost = cookingWood(w);
+        if (!bag.raw || bag.wood < woodCost || a.energy < 5) { text = 'could not cook: needs ingredients, wood and energy.'; failed = true; break; }
         const yieldMeals = cookYield(w, a);
-        bag.raw--; bag.wood--; bag.meal += yieldMeals; a.energy = Math.max(0, a.energy - 4); bump(a, 'cooked', yieldMeals);
+        bag.raw--; bag.wood -= woodCost; spendCookingFuel(w); bag.meal += yieldMeals; a.energy = Math.max(0, a.energy - 4); bump(a, 'cooked', yieldMeals);
         practice(w, a, 'cook'); w.mealsCooked += yieldMeals;
         text = yieldMeals === 2 ? 'cooked two safe meals at the hearth.' : `cooked ${yieldMeals} safe meals at the hearth.`; break;
       }
       case 'craft': case 'offer': case 'buy': case 'cancel_offer': {
         const result = completeMarketAction(w, a, t);
+        text = result.text; failed = Boolean(result.failed); kind = result.kind || kind; extra = result.extra || {}; break;
+      }
+      case 'request': case 'request_cooking': case 'fulfill': case 'fulfill_cooking': case 'cancel_request': case 'contribute': case 'build': case 'request_work': case 'fulfill_work': case 'craft_bed': case 'craft_furnishing': case 'furnish': case 'socialize': case 'host_meal': case 'attend': {
+        const result = completeVillageAction(w, a, t, cookYield(w, a));
         text = result.text; failed = Boolean(result.failed); kind = result.kind || kind; extra = result.extra || {}; break;
       }
       case 'eat':
@@ -384,14 +427,15 @@ export function advance(w) {
   }
   w.tick++;
   expireOffers(w, event);
+  expireVillage(w, event);
   if (isV4(w) && w.tick % TICKS_PER_DAY === 0) {
     const cumulative = { ...metrics(w), gathered: w.agents.reduce((n, a) => n + a.stats.gathered, 0),
       gatheredFood: w.agents.reduce((n, a) => n + a.stats.gatheredFood, 0), gatheredWood: w.agents.reduce((n, a) => n + a.stats.gatheredWood, 0), mealsCooked: w.mealsCooked };
-    const daily = Object.fromEntries(['gifts', 'thefts', 'theftAttempts', 'pantryShares', 'pantryTakes', 'messages', 'blocked', 'rawMeals', 'starvingHours', 'gathered', 'gatheredFood', 'gatheredWood', 'mealsCooked', ...(hasEconomy(w) ? ['trades', 'coinsTraded', 'toolsCrafted', 'toolsUsed', 'offersPosted'] : [])]
+    const daily = Object.fromEntries(['gifts', 'thefts', 'theftAttempts', 'pantryShares', 'pantryTakes', 'messages', 'blocked', 'rawMeals', 'starvingHours', 'gathered', 'gatheredFood', 'gatheredWood', 'mealsCooked', ...(hasEconomy(w) ? ['trades', 'coinsTraded', 'toolsCrafted', 'toolsUsed', 'offersPosted'] : []), ...(hasVillage(w) ? Object.keys(w.village.stats) : [])]
       .map(k => [k, Math.round((cumulative[k] - (w.previousDayMetrics?.[k] || 0)) * 10) / 10]));
     events.push({ kind: 'day_summary', tick: w.tick, day: w.tick / TICKS_PER_DAY, text: `Day ${w.tick / TICKS_PER_DAY} complete.`, daily, cumulative,
       residents: w.agents.map(a => ({ id: a.id, name: a.name, hunger: a.hunger, health: a.health, inventory: clone(a.inventory),
-        ...(hasEconomy(w) ? { coins: a.coins, profession: a.profession, skills: clone(a.skills), toolUses: a.toolUses, economicStats: clone(a.economicStats) } : {}) })) });
+        ...(hasEconomy(w) ? { coins: a.coins, profession: a.profession, skills: clone(a.skills), toolUses: a.toolUses, economicStats: clone(a.economicStats) } : {}), ...(hasVillage(w) ? { home: clone(a.home), satisfaction: a.satisfaction } : {}) })) });
     w.previousDayMetrics = cumulative;
   }
   if (w.tick >= w.maxTicks) { w.running = false; w.pauseReason = isV4(w) ? `${w.days}-day simulation complete` : 'One-day pilot complete'; }
@@ -402,12 +446,12 @@ export function advance(w) {
 export function metrics(w) {
   if (!isV3(w)) return null;
   const sum = key => w.agents.reduce((n, a) => n + a.stats[key], 0);
-  const wealth = w.agents.map(a => a.inventory.meal + a.inventory.raw + (hasEconomy(w) ? w.economy.offers.filter(o => o.sellerId === a.id && ['meal', 'raw'].includes(o.item)).length : 0)), mean = wealth.reduce((n, x) => n + x, 0) / wealth.length;
+  const wealth = w.agents.map(a => a.inventory.meal + a.inventory.raw + (hasVillage(w) ? w.village.requests.filter(r => r.ownerId === a.id).reduce((n,r) => n+(r.escrow.raw || 0)+(r.escrow.meal || 0),0) + w.village.gatherings.filter(g => g.hostId === a.id).length : 0) + (hasEconomy(w) ? w.economy.offers.filter(o => o.sellerId === a.id && ['meal', 'raw'].includes(o.item)).length : 0)), mean = wealth.reduce((n, x) => n + x, 0) / wealth.length;
   const gini = mean ? wealth.reduce((n, x) => n + wealth.reduce((m, y) => m + Math.abs(x - y), 0), 0) / (2 * wealth.length ** 2 * mean) : 0;
   return { gifts: sum('gave'), thefts: sum('stole'), theftAttempts: sum('stealAttempts'), pantryShares: sum('shared'), pantryTakes: sum('took'),
     messages: sum('talked'), blocked: sum('blocked'), rawMeals: sum('ateRaw'), starvingHours: Math.round(sum('starvingTicks') / DECISION_INTERVAL * 10) / 10,
     foodGini: Math.round(gini * 100) / 100, orchard: w.resources.food, woods: w.resources.wood, pantry: w.pantry,
-    lowestHealth: Math.round(Math.min(...w.agents.map(a => a.health))), ...economyMetrics(w) };
+    lowestHealth: Math.round(Math.min(...w.agents.map(a => a.health))), ...economyMetrics(w), ...villageMetrics(w) };
 }
 
 export class WorldStore {
@@ -415,13 +459,14 @@ export class WorldStore {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(path);
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
+      CREATE TABLE IF NOT EXISTS batches (id TEXT PRIMARY KEY, state TEXT NOT NULL, updated TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS worlds (id TEXT PRIMARY KEY, state TEXT NOT NULL, updated TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS records (id INTEGER PRIMARY KEY, run TEXT NOT NULL, tick INTEGER NOT NULL, kind TEXT NOT NULL, data TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS records_run ON records(run,id);
       CREATE INDEX IF NOT EXISTS records_slot ON records(run,tick,kind);
       CREATE TABLE IF NOT EXISTS frames (id INTEGER PRIMARY KEY, run TEXT NOT NULL, tick INTEGER NOT NULL, state TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS frames_run ON frames(run,id);`);
-    const row = this.db.prepare('SELECT state FROM worlds ORDER BY updated DESC LIMIT 1').get();
+    const row = this.db.prepare('SELECT state FROM worlds ORDER BY updated DESC,rowid DESC LIMIT 1').get();
     this.world = row ? JSON.parse(row.state) : newWorld();
     const wasRunning = this.world.running;
     this.world.running = false;
@@ -434,7 +479,7 @@ export class WorldStore {
     }
     this.save();
   }
-  save(events = [], frame = false) {
+  save(events = [], frame = false, batch = null) {
     this.db.exec('BEGIN IMMEDIATE');
     try {
       this.db.prepare('INSERT OR REPLACE INTO worlds VALUES (?,?,?)').run(this.world.id, JSON.stringify(this.world), new Date().toISOString());
@@ -442,6 +487,7 @@ export class WorldStore {
       for (const e of events) insert.run(this.world.id, this.world.tick, e.kind, JSON.stringify(e));
       if (frame) this.db.prepare('INSERT INTO frames(run,tick,state) VALUES (?,?,?)').run(this.world.id, this.world.tick,
         isV4(this.world) ? deflateSync(JSON.stringify(this.world), { level: 1 }) : JSON.stringify(this.world));
+      if (batch) this.db.prepare('INSERT OR REPLACE INTO batches VALUES (?,?,?)').run(batch.id, JSON.stringify(batch), new Date().toISOString());
       this.db.exec('COMMIT');
     } catch (e) { this.db.exec('ROLLBACK'); throw e; }
   }

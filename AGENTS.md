@@ -39,3 +39,12 @@ start/resume/reset a run just to inspect it. Model dialogue and stated reasons a
   skill histories and private notebooks cannot. Stated dialogue never authorizes an engine transfer.
 - Model trade demand is unverified until a live v5 run; demos and fake-provider tests are not evidence
   that an agent spontaneously chose a profession or invented a market. No automatic survival actions.
+
+- Cooperative life is opt-in `world-v6`; keep v4/v5 saved inputs/physics unchanged. Request escrow,
+  cooking barter/services, one-time projects, home goods and voluntary gatherings are engine-owned.
+  Include reserved coins and food in conservation. Satisfaction is not health or a trust score.
+- Fresh owner batches default to five serial runs, each ten days; no cross-run learning or hidden
+  seed variation. Keep IDs, settings, every started result and failures. Never replace a failed
+  member, auto-resume after restart, or prune evidence to fit the 20-world limit.
+- Inspect `/api/research/batches` for replication results. Aggregates use completed members only;
+  report incomplete/paused outcomes as well. Fake-provider/demo batches are not live model evidence.

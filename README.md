@@ -5,11 +5,51 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.5.0 / optional village economy v5
+## Current release: app v0.6.0 / cooperative village v6
+
+Owner controls now default to **five separate ten-day villages**, run in series on the existing
+single worker. Create a paused batch, then press **Play village / batch**. Each member starts fresh
+with the same conditions; no inventories, relationships or learning carry between villages.
+Five ten-day ChatGPT runs plan **7,200 decisions**, with at most 60 retry attempts across five separate
+12-retry allowances (7,260 maximum). Demo batches use scripted choices and make no model calls.
+Pause stops the queue, failures stop for review, and a server restart never resumes it automatically.
+Every run and its exact inputs remain retained. The comparison table shows individual outcomes plus
+completed-run means and ranges, with links to evidence and inspection of each saved end state.
+
+Cooperative life adds these optional activities:
+
+- **Funded request board:** advertise one needed good for 1–12 coins; payment is reserved until
+  another resident delivers that exact item. One request per person, 24-hour expiry with one refund.
+- **Cooking services:** reserve one ingredient and one wood. Pay a fee to receive all the provider's
+  output, or offer a free barter: receive one meal while the provider keeps the rest. Asha's three-meal
+  recipe creates an advantage. Work actually takes place at the hearth; no unpaid promises move goods.
+- **Shared projects:** supply wood and do work to build a stove (6 wood/12 work), orchard improvements
+  (8/12), or workshop (6/12). A build action adds 2 work, or 3 for Bolt. Fully supplied projects can also
+  have funded requests for a single work action. The stove saves wood on every second cooking batch;
+  orchard improvements raise food regeneration from 12 to 18 per day; the workshop reduces crafting costs.
+- **Homes and leisure:** craft, sell, gift or request beds and furnishings. Install them once per
+  resident at the lodge: beds raise rest from 5 to 7 energy per tick; furnishings halve satisfaction
+  decay from 0.06 to 0.03 per tick. Home goods cost wood and energy, so comfort competes with production.
+  Spend leisure time at the green or reserve a meal for a neighbor. Attendees explicitly choose to
+  eat and must meet the normal hunger threshold; nobody is fed automatically. Satisfaction is an
+  optional quality-of-life measure, not a health penalty or trust score.
+- **Clear tool facts:** observations separate equipped durability from spare tools and show total
+  available charges. A spare equips automatically. Tools cannot harvest resources that do not exist.
+
+New requests, projects and public gatherings are visible remotely; other residents' wallets, bags,
+homes, satisfaction, skills and private notebooks stay private to them. The observer can inspect the
+full physical state. Exactly **48 coins including request escrow** circulate; no coins are minted.
+Unfinished services and unaccepted invitations retain their reserved supplies at the end of a run.
+
+Uncheck cooperative life to repeat v5; disable both economy options for v4. Existing worlds retain
+their original version and observations. Batches reserve enough of the existing 20 saved-run slots
+before starting and never remove evidence. One batch is a repeated-condition experiment: changes
+bundle prompts and physical rules, and results do not establish which individual mechanic caused an effect.
+
+## Earlier experiment: optional village economy v5
 
 Residents have more to do once dinner is secure: practice a trade, make gathering tools, post goods
-for sale and choose whether to accept someone else's price. Owner controls defaults to **Professions,
-tools & market (v5)** with **Renewable village**. Uncheck the economy to create another v4 survival
+for sale and choose whether to accept someone else's price. The v5 condition uses **Professions, tools & market** with **Renewable village**. Uncheck the economy to create another v4 survival
 baseline. Existing worlds, including the completed healthy ten-day baseline, keep their original rules.
 
 | Residents | Starting specialty | Physical advantage |
@@ -30,7 +70,7 @@ experimental endowments, not professions the agents spontaneously invented.
   One live offer per resident keeps at most six listings. A buyer walks to the green and explicitly
   accepts the exact offer ID, item and price. Goods and coins transfer together; an unavailable,
   changed, unaffordable or already purchased offer becomes an in-world blocked action.
-- **Coins:** eight per resident, 48 total, with no faucet, wages, credit or recurring grants. Market
+- **Coins:** eight per resident, 48 total, with no faucet, credit or recurring grants. V6 permits residents to pay each other for completed work. Market
   volume can exceed 48 because coins circulate; it is not money creation. Coins do not feed anyone.
 - **Unsold goods:** cancelling or waiting 12 simulated hours returns escrow to the seller once.
   Wallets, equipped tools and skill histories remain private to each resident. Profession listings,

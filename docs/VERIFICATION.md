@@ -194,3 +194,32 @@ Physical-phone layout and sign-in remain unverified; desktop browser rendering i
   was used successfully against a consumed setup key.
 - Not yet verified: any live ChatGPT/Codex inference under the v3 schema, a deployed v3 Railway build,
   and physical-iPhone rendering. The first live v3 round should be checked for valid `item` output.
+
+## App v0.6.0 / simulation v6 — cooperative life and serial replications — 2026-10-19
+
+- `npm run check` and the full 106-test suite pass, including mixed valid/impossible action
+  invariants. Legacy v4/v5 tests pass.
+- Five ten-day scripted villages complete with distinct IDs, exact condition settings, permanent
+  daily records, conserved coins and completed-only aggregates. A separate five-ten-day mock-provider
+  batch saves 7,200 requests/decisions, 1,200 applied rounds and 50 daily summaries; all residents
+  remain at health 100 under the observation-only reference policy. This proves feasibility and
+  lifecycle/protocol behavior, not spontaneous model cooperation or production inference.
+- Focused tests cover funded exact-match item delivery, competing suppliers, insufficient supplies,
+  owner-only cancellation, one-time refund on expiry, paid cooking versus barter, service input
+  conservation, all three project benefits and one-time completion, paid project work, home-good
+  purchase/installation/rest benefits, voluntary shared meals, idle starvation, privacy, restart
+  preservation of queue and escrow, failed-run pause, saved-run admission limits and real-adapter
+  v6 wire-schema/input equality with a disposable fake transport.
+- Real local Playwright/Chromium 153 acceptance passes at desktop 1440×1000 and phone 390×844:
+  five-run default and whole-batch budget, paused v6 creation through owner controls, six market
+  listings and engine purchase, public request/delivery, home upgrade, gathering, five completed
+  scripted villages, mean/range display, saved-run inspection and return to live. No page errors
+  or horizontal page overflow. Screenshots inspected; physical iPhone is not tested.
+  The browser was installed in a disposable test directory; no production dependency was added.
+- Live v5 evidence motivating the changes: completed run 9ac4635f-7bd8-4e96-9995-b179b3b53b0f
+  used 56 wood for 31 tools, made no offers/trades, and recorded 34 raw meals and 10.9 aggregate
+  starving hours. Its tool reasoning sometimes ignored carried spares. V6 makes both spare and
+  equipped charges explicit, and adds funded demand, services, projects and optional comfort goals.
+- Not yet verified: deployed v6 persistence, actual ChatGPT adoption of these activities, or a live
+  five-run batch. Existing saved worlds are not migrated or started by this change. Five repeated
+  v6 conditions measure within-condition variation and do not isolate the effects of each addition.
