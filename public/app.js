@@ -3,10 +3,11 @@ let current, displayed, previous, receivedAt = 0, selected = 'v1', showLabels = 
 const canvas = $('village'), ctx = canvas.getContext('2d');
 const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const time = tick => `${String(Math.floor(tick * 5 / 60) % 24).padStart(2, '0')}:${String(tick * 5 % 60).padStart(2, '0')}`;
-const hourlyRun = w => ['world-v2', 'world-v3', 'world-v4'].includes(w?.version);
-const VERBS = { gather: 'Gathering', give: 'Giving', steal: 'Stealing', take: 'Taking', talk: 'Talking', invalid: 'Confused' };
-const ICONS = { give: '🎁', steal: '✋', take: '🥣', talk: '💬' };
-const DILEMMAS = ['give', 'steal', 'take', 'share', 'blocked', 'failure'];
+const hourlyRun = w => ['world-v2', 'world-v3', 'world-v4', 'world-v5'].includes(w?.version);
+const VERBS = { gather: 'Gathering', give: 'Giving', steal: 'Stealing', take: 'Taking', talk: 'Talking', craft: 'Making tools', offer: 'Listing goods', buy: 'Shopping', cancel_offer: 'Collecting goods', invalid: 'Confused' };
+const ICONS = { give: '🎁', steal: '✋', take: '🥣', talk: '💬', craft: '🛠', offer: '🏷', trade: '🤝', offer_expired: '↩' };
+const DILEMMAS = ['give', 'steal', 'take', 'share', 'blocked', 'failure', 'offer', 'trade', 'cancel_offer', 'offer_expired', 'craft'];
+const professionName = role => ({ grower: 'Grower', woodcutter: 'Woodcutter', cook: 'Cook', craftsperson: 'Craftsperson' }[role] || role);
 // Static copy keyed by scenario id; never interpolates run data into HTML.
 const QUESTIONS = { sustainable: 'Who keeps supplies<br>moving?<br>Can cooperation<br>last ten days?', plenty: 'Who gathers?<br>Who cooks?<br>Who leaves a little<br>for someone else?', commons: 'Who holds back?<br>Who strips the trees?<br>Does anyone<br>say “enough”?', inequality: 'Do the haves<br>share?<br>Do the have-nots<br>ask, or take?' };
 let journalFilter = 'all';
@@ -18,18 +19,29 @@ async function api(path, data) {
   const result = await r.json(); if (!r.ok) throw new Error(result.error || 'Request failed'); return result;
 }
 function toast(message) { $('toast').textContent = message; $('toast').hidden = false; setTimeout(() => $('toast').hidden = true, 5000); }
+function renderEconomy(w, a) {
+  $('market-section').hidden = !w.economy;
+  if (!w.economy) return;
+  const m = w.economy;
+  $('market-summary').textContent = `${m.stats.trades} trades · ${m.stats.coinsTraded} coins exchanged · ${m.stats.toolsCrafted} tools made · ${w.agents.reduce((n, b) => n + b.coins, 0)} coins circulating`;
+  $('market-roles').innerHTML = w.agents.map(b => `<div><strong>${escape(b.name)}</strong><span>${escape(professionName(b.profession))}</span></div>`).join('');
+  $('market-offers').innerHTML = m.offers.map(o => `<article class="offer-card"><p class="eyebrow">${escape(o.seller)} · OFFER #${o.id}</p><h3>1 ${escape(o.item)}</h3><strong>${o.price} coins</strong><p>Returns in ${Math.max(0, Math.ceil((o.expiresAt - w.tick) * 5 / 60))} hours</p></article>`).join('') || '<p class="empty">The stalls are quiet. Residents can bring goods to sell here.</p>';
+  $('market-trades').innerHTML = m.trades.slice(-8).reverse().map(t => `<div class="memory">D${Math.floor(t.tick / 288) + 1} ${time(t.tick)} · <b>${escape(nameOf(w, t.buyerId))}</b> bought 1 ${escape(t.item)} from ${escape(nameOf(w, t.sellerId))} for ${t.price} coins.</div>`).join('') || '<p class="hint">Accepted trades will appear here. Residents choose whether to buy.</p>';
+  $('market-days').innerHTML = (replay ? [] : current.daySummaries || []).filter(d => d.daily.trades !== undefined).map(d => `<tr><th>${d.day}</th><td>${d.daily.trades}</td><td>${d.daily.coinsTraded}</td><td>${d.daily.toolsCrafted}</td><td>${d.daily.offersPosted}</td></tr>`).join('');
+  $('inspector').innerHTML += `<p class="eyebrow">LIVELIHOOD</p><p><strong>${escape(professionName(a.profession))}</strong> · ${a.coins} coins</p><div class="inventory"><span>${a.inventory.tool} unused tools</span><span>${a.toolUses} tool uses left</span><span>${a.economicStats.bought} purchases · ${a.economicStats.sold} sales</span></div><p class="hint">Everyone can do every job. Specialties improve output; six successful jobs make a skill quicker.</p>${Object.entries(a.skills).map(([role, xp]) => `<div class="skill-row"><span>${escape(professionName(role))}</span><span>${xp} jobs${xp >= m.rules.practiceThreshold ? ' · practiced' : ''}</span></div>`).join('')}`;
+}
 function render() {
   if (!displayed) return;
   const w = displayed.world;
   $('mode').textContent = w.mode === 'demo' ? 'DEMO · SCRIPTED' : 'CHATGPT · LIVE DECISIONS';
   const finished = w.tick >= w.maxTicks, totalDays = w.days || Math.ceil(w.maxTicks / 288);
   $('clock').textContent = `Day ${finished ? totalDays : Math.floor(w.tick / 288) + 1}${w.days ? ' / ' + totalDays : ''} · ${finished ? '24:00' : time(w.tick)}`;
-  $('app-version').textContent = `App v${current.appVersion || '0.4.2'}`;
+  $('app-version').textContent = `App v${current.appVersion || '0.5.0'}`;
   $('run-version').textContent = `Simulation ${w.version.replace('world-','')} · Run ${w.id.slice(0,8)}`;
   $('decision-pace').textContent = hourlyRun(w) ? `Hourly decisions · ${Math.min(w.maxTicks/12,(w.nextDecisionTick || 0)/12)} / ${w.maxTicks/12} rounds · quiet time skips ahead` : 'v1 pilot preserved · start a fresh run to use v4';
   $('scenario-tag').textContent = w.scenario ? `CONDITION · ${w.scenario.name.toUpperCase()}${w.personas ? ' · TEMPERAMENTS' : ''}` : 'FIELD NOTE 001';
-  $('scenario-question').innerHTML = QUESTIONS[w.scenario?.id] || QUESTIONS.plenty;
-  $('scenario-summary').textContent = w.scenario?.summary || 'A one-day pilot in a shared world';
+  $('scenario-question').innerHTML = w.economy ? 'Who makes?<br>Who trades?<br>What will they<br>build a living on?' : QUESTIONS[w.scenario?.id] || QUESTIONS.plenty;
+  $('scenario-summary').textContent = (w.scenario?.summary || 'A one-day pilot in a shared world') + (w.economy ? ' Professions, gathering tools and a village market are active.' : '');
   const m = displayed.metrics;
   $('world-status').textContent = replay ? 'Recorded playback' : current.retry ? `${current.retry.actor} · retrying temporary model failure…` : current.busy ? `${current.pendingName || 'Village'} is thinking…` : w.running ? 'The village is living' : w.pauseReason;
   $('pantry').innerHTML = `${w.pantry} <em>meals</em>`;
@@ -43,6 +55,7 @@ function render() {
   $('residents').querySelectorAll('button').forEach(b => b.onclick = () => { selected = b.dataset.agent; render(); });
   const a = w.agents.find(x => x.id === selected);
   $('inspector').innerHTML = `<h3>${a.name}’s day</h3><div class="needs">${[['Hunger', a.hunger], ['Energy', a.energy], ['Health', a.health]].map(([n, v]) => `<div><div class="need"><span>${n}</span><span>${Math.round(v)} / 100</span></div><div class="meter"><span data-width="${v}"></span></div></div>`).join('')}</div><div class="inventory"><span>${a.inventory.raw} ingredients</span><span>${a.inventory.wood} wood</span><span>${a.inventory.meal} meals</span></div>${a.persona ? `<p class="temperament">${escape(a.persona)}</p>` : ''}<p class="eyebrow">STATED REASON</p><p class="stated">${escape(a.lastReason || 'A new day. Nothing decided yet.')}</p>${a.stats ? `<p class="eyebrow">BEHAVIOR RECORD</p><div class="behavior">${[['Gave', a.stats.gave], ['Received', a.stats.received], ['Stole', a.stats.stole], ['Robbed', a.stats.robbed], ['To pantry', a.stats.shared], ['From pantry', a.stats.took], ['Spoke', a.stats.talked], ['Starving h', Math.round(a.stats.starvingTicks / 12 * 10) / 10]].map(([n, v]) => `<span><b>${v}</b>${n}</span>`).join('')}</div>` : ''}${a.plans?.length ? `<p class="eyebrow">HOURLY PLANS</p>${a.plans.slice(-3).reverse().map(p => `<div class="memory"><b>D${Math.floor(p.tick/288)+1} ${time(p.tick)} · ${escape(p.action)}${p.target !== 'none' ? ' → ' + escape(nameOf(w, p.target)) : ''}${p.item && p.item !== 'none' ? ' (' + escape(p.item) + ')' : ''}</b><br>${escape(p.reason)}</div>`).join('')}` : ''}<p class="eyebrow">RECENT MEMORIES</p>${a.memories.slice(-3).reverse().map(m => `<div class="memory">D${Math.floor(m.tick/288)+1} ${time(m.tick)} · ${escape(m.text)}</div>`).join('') || '<p class="hint">Memories form from events within hearing range.</p>'}`;
+  renderEconomy(w, a);
   if (a.relationships) {
     const people = Object.values(a.relationships);
     $('inspector').innerHTML += `<p class="eyebrow">SOCIAL NOTEBOOK · PRIVATE TO ${escape(a.name.toUpperCase())}</p><p class="hint">Witnessed encounters; trust is the resident’s judgment.</p>${people.map(p => `<div class="memory"><b>${escape(p.name)}</b> · heard ${p.heardMessages} messages · received ${p.giftsReceived} gifts · robbed ${p.theftsSuffered} times${p.firstWords ? '<br>First words heard: ' + escape(p.firstWords.text) : ''}${p.lastWords && p.lastWords.tick !== p.firstWords?.tick ? '<br>Latest words heard: ' + escape(p.lastWords.text) : ''}${p.recentEvents.slice(-2).map(e => '<br>D' + (Math.floor(e.tick/288)+1) + ' ' + time(e.tick) + ' · ' + escape(e.text)).join('')}</div>`).join('') || '<p class="hint">No encounters recorded yet. Everyone begins as a stranger.</p>'}`;
@@ -108,9 +121,10 @@ function draw(now) {
   ctx.fillStyle='#c78344';ctx.beginPath();ctx.moveTo(hearth.x-12,hearth.y-4);ctx.quadraticCurveTo(hearth.x-18,hearth.y-20,hearth.x-2,hearth.y-35);ctx.quadraticCurveTo(hearth.x+2,hearth.y-18,hearth.x+11,hearth.y-25);ctx.quadraticCurveTo(hearth.x+21,hearth.y-5,hearth.x-12,hearth.y-4);ctx.fill();
   ctx.fillStyle='#e6bb65';ctx.beginPath();ctx.ellipse(hearth.x,hearth.y-10,6,10,0,0,7);ctx.fill();
   const square=xy(8,12);ctx.fillStyle='#acbb8d';ctx.beginPath();ctx.ellipse(square.x,square.y,50,33,0,0,7);ctx.fill();
+  if(w.economy){for(const dx of [-35,35]){ctx.fillStyle='#9b7855';ctx.fillRect(square.x+dx-16,square.y-27,32,25);ctx.fillStyle=dx<0?'#ba865d':'#7d9572';ctx.fillRect(square.x+dx-20,square.y-35,40,12);ctx.fillStyle='#e9d6b5';ctx.fillRect(square.x+dx-12,square.y-35,8,12);ctx.fillRect(square.x+dx+4,square.y-35,8,12);}}
   for(const dx of [-36,35]){ctx.fillStyle='#99815b';ctx.fillRect(square.x+dx-12,square.y-6,25,7);ctx.fillRect(square.x+dx-10,square.y+1,4,7);ctx.fillRect(square.x+dx+7,square.y+1,4,7);}
   const stock = { orchard: ` · ${w.resources.food}`, forest: ` · ${w.resources.wood}`, pantry: ` · ${w.pantry}` };
-  if (showLabels) for(const [key,place]of Object.entries(places)){const p=xy(place.x,place.y);tag(place.name+(stock[key]||''),p.x,p.y+(key==='forest'?26:35));}
+  if (showLabels) for(const [key,place]of Object.entries(places)){const p=xy(place.x,place.y);tag((w.economy&&key==='square'?'Market & workbench':place.name)+(stock[key]||''),p.x,p.y+(key==='forest'?26:35));}
   const t = replay || matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : Math.min(1, (now - receivedAt) / 850);
   const agents = w.agents.map(a=>{const old=previous?.world.agents.find(b=>b.id===a.id)||a;return {...a,drawX:old.x+(a.x-old.x)*t,drawY:old.y+(a.y-old.y)*t};});
   // Residents sharing a tile stand side by side instead of drawing over each other.
@@ -119,9 +133,9 @@ function draw(now) {
   agents.sort((a,b)=>a.drawY-b.drawY);
   const at = Object.fromEntries(agents.map(a=>[a.id,xy(a.drawX,a.drawY)]));
   // Live gifts and thefts from the last hour are drawn as links between the two residents.
-  const recent = replay ? [] : current.events.filter(e=>['give','steal'].includes(e.kind)&&e.targetId&&w.tick-e.tick<=12);
+  const recent = replay ? [] : current.events.filter(e=>['give','steal','trade'].includes(e.kind)&&e.targetId&&w.tick-e.tick<=12);
   for(const e of recent){const a=at[e.actorId],b=at[e.targetId];if(!a||!b)continue;ctx.save();ctx.setLineDash([6,6]);ctx.lineWidth=3;ctx.strokeStyle=e.kind==='give'?'#5d8a52cc':'#b4553fcc';ctx.beginPath();ctx.moveTo(a.x,a.y-15);ctx.lineTo(b.x,b.y-15);ctx.stroke();ctx.restore();}
-  const badges = Object.fromEntries((replay ? [] : current.events.filter(e=>['give','steal','take'].includes(e.kind)&&w.tick-e.tick<=6)).map(e=>[e.actorId,ICONS[e.kind]]));
+  const badges = Object.fromEntries((replay ? [] : current.events.filter(e=>['give','steal','take','trade','craft','offer'].includes(e.kind)&&w.tick-e.tick<=6)).map(e=>[e.actorId,ICONS[e.kind]]));
   for(const a of agents){const p=at[a.id];ctx.fillStyle='#57634333';ctx.beginPath();ctx.ellipse(p.x,p.y+6,15,7,0,0,7);ctx.fill();if(a.id===selected){ctx.strokeStyle='#f6f4e4';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(p.x,p.y+5,20,11,0,0,7);ctx.stroke();}ctx.fillStyle='#5e614a';ctx.fillRect(p.x-7,p.y-3,5,12);ctx.fillRect(p.x+2,p.y-3,5,12);ctx.fillStyle=a.color;ctx.beginPath();ctx.roundRect(p.x-11,p.y-26,22,25,6);ctx.fill();ctx.fillStyle='#ebc6a0';ctx.beginPath();ctx.arc(p.x,p.y-32,10,0,7);ctx.fill();ctx.fillStyle='#5b503d';ctx.beginPath();ctx.arc(p.x,p.y-35,10,Math.PI,Math.PI*2);ctx.fill();ctx.fillStyle='#384936';ctx.font='bold 12px system-ui';ctx.textAlign='center';ctx.fillText(a.name,p.x,p.y-49);if(badges[a.id]){ctx.font='18px system-ui';ctx.fillText(badges[a.id],p.x+20,p.y-40);}if(speaking(w,a)){tag(a.lastMessage.length>38?a.lastMessage.slice(0,37)+'…':a.lastMessage,p.x,p.y-87);}}
   // Night is a visual clock; it does not change experimental rules.
   const hour = w.tick * 5 / 60 % 24;if(hour<5||hour>20){ctx.fillStyle='#23384925';ctx.fillRect(0,0,1000,850);}
@@ -166,7 +180,7 @@ async function action(name,data={}){
   }catch(e){ownerMessage(e.message,true);if(name==='connect')$('account-status').textContent=e.message;}
   finally{if(button)button.textContent=label;pendingActions--;actionPending=pendingActions>0;buttons.forEach(b=>b.disabled=actionPending&&b.id!=='pause');}
 }
-$('manage').onclick=async()=>{const s=await api('/api/session');owner=s.owner;$('owner-required').hidden=owner;$('owner-content').hidden=!owner;$('owner-dialog').showModal();if(owner){if(!defaultsApplied&&current){$('new-mode').value=current.world.mode;if(current.world.scenario){$('scenario').value=current.world.scenario.id;$('personas').checked=current.world.personas;}defaultsApplied=true;}account();}};
+$('manage').onclick=async()=>{const s=await api('/api/session');owner=s.owner;$('owner-required').hidden=owner;$('owner-content').hidden=!owner;$('owner-dialog').showModal();if(owner){if(!defaultsApplied&&current){$('new-mode').value=current.world.mode;if(current.world.scenario){$('scenario').value=current.world.scenario.id;$('personas').checked=current.world.personas;}if($('economy').checked)$('scenario').value='sustainable';defaultsApplied=true;}account();}};
 $('claim-form').onsubmit=async e=>{e.preventDefault();try{await api('/api/claim',{token:$('setup-key').value.trim()});$('setup-key').value='';owner=true;$('owner-required').hidden=true;$('owner-content').hidden=false;$('owner-message').textContent='Owner access connected on this device.';await account();}catch(err){$('owner-message').textContent=err.message;}};
 for(const [id,name]of [['connect','connect'],['disconnect','disconnect'],['play','run'],['pause','pause'],['step','step']])$(id).onclick=()=>action(name);
 $('refresh-account').onclick=async()=>{
@@ -177,7 +191,8 @@ $('refresh-account').onclick=async()=>{
 };
 function updateBudget(){const days=Number($('days').value);$('run-budget').textContent=Number.isInteger(days)&&days>=1&&days<=30?`${days} days · ${(days*144).toLocaleString()} planned + 12 retries · up to ${(days*144+12).toLocaleString()} model requests. Scripted demo makes no model requests.`:'Choose 1–30 whole days.';}
 $('days').oninput=updateBudget;
-$('new-run').onclick=()=>{const days=Number($('days').value);if(!Number.isInteger(days)||days<1||days>30){ownerMessage('Choose 1–30 whole days.',true);return;}return action('new',{mode:$('new-mode').value,model:$('model').value,scenario:$('scenario').value,personas:$('personas').checked,days,socialStart:$('social-start').checked});};
+$('economy').onchange=()=>{if($('economy').checked)$('scenario').value='sustainable';};
+$('new-run').onclick=()=>{const days=Number($('days').value);if(!Number.isInteger(days)||days<1||days>30){ownerMessage('Choose 1–30 whole days.',true);return;}if($('economy').checked&&$('scenario').value!=='sustainable'){ownerMessage('Choose Renewable village for the economy experiment.',true);return;}return action('new',{mode:$('new-mode').value,model:$('model').value,scenario:$('scenario').value,economy:$('economy').checked===true,personas:$('personas').checked,days,socialStart:$('social-start').checked});};
 for(const b of document.querySelectorAll('[data-filter]'))b.onclick=()=>{journalFilter=b.dataset.filter;for(const x of document.querySelectorAll('[data-filter]'))x.setAttribute('aria-pressed',String(x===b));render();};
 async function init(){const params=new URLSearchParams(location.hash.slice(1));const token=params.get('setup');if(token){history.replaceState(null,'',location.pathname);try{await api('/api/claim',{token});toast('Owner access connected on this device.');owner=true;}catch(e){toast(e.message);}}await poll();await loadFrames();if(owner)$('manage').click();}
 init();requestAnimationFrame(draw);setInterval(poll,1000);setInterval(loadFrames,6000);setInterval(()=>{if(owner&&$('owner-dialog').open&&!actionPending)account();},5000);

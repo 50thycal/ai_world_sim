@@ -26,7 +26,7 @@ for await(const line of readline.createInterface({input:process.stdin})){
   if(obs.name==='TriggerFailure'){send({method:'turn/completed',params:{threadId,turn:{status:'failed'}}});break;}
   send({method:'thread/tokenUsage/updated',params:{threadId,tokenUsage:{last:{inputTokens:120,outputTokens:30}}}});
   // Answer in whichever decision shape the adapter's outputSchema requested.
-  const decision={action:'wait',target:'none',message:'',reason:'I will observe.',...(m.params.outputSchema?.properties?.item?{item:'none'}:{})};
+  const decision={action:'wait',target:'none',message:'',reason:'I will observe.',...(m.params.outputSchema?.properties?.item?{item:'none'}:{}),...(m.params.outputSchema?.properties?.price?{price:0,offerId:0}:{})};
   send({method:'item/completed',params:{threadId,item:{type:'agentMessage',text:JSON.stringify(decision)}}});
   send({method:'turn/completed',params:{threadId,turn:{status:'completed'}}});break;
  }

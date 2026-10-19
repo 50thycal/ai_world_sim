@@ -30,3 +30,12 @@ start/resume/reset a run just to inspect it. Model dialogue and stated reasons a
 - Renewable village explicitly opts into fixed food/fuel replenishment from zero. Legacy scenarios
   keep their saved text and physical rules. Use the observation-only reference-policy test for
   feasibility; it is not model behavior evidence or a live inference fallback.
+
+- Economy is opt-in `world-v5` on Renewable village only; v4 remains the survival baseline. Never
+  migrate a saved world to add professions, wallets or market actions. Preserve the v4 input fix.
+- Exactly 48 coins circulate. Every sale needs seller escrow and a buyer's exact offer acceptance;
+  cancellation/expiry refunds once. Keep at most one live offer per seller and 24 recent trades.
+- Public offers/professions/trades can be observed remotely. Other wallets, bags, equipped tools,
+  skill histories and private notebooks cannot. Stated dialogue never authorizes an engine transfer.
+- Model trade demand is unverified until a live v5 run; demos and fake-provider tests are not evidence
+  that an agent spontaneously chose a profession or invented a market. No automatic survival actions.

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { failureCode } from './diagnostics.js';
 import { instructionsFor } from './codex.js';
 import { slotAttempts, retriesUsed, transientFailure, RETRY_DELAYS } from './recovery.js';
-import { advance, assign, demoDecision, observation, decisionSchema, groundedInput, hourly, decisionDue, DECISION_INTERVAL, routineOnly, APP_VERSION } from './world.js';
+import { advance, assign, demoDecision, observation, decisionSchema, groundedInput, isV4, hourly, decisionDue, DECISION_INTERVAL, routineOnly, APP_VERSION } from './world.js';
 
 export class Runner {
   constructor(store, codex, diagnostics = { emit() {} }, { retryDelays = RETRY_DELAYS } = {}) {
@@ -27,7 +27,7 @@ export class Runner {
       if (!w.model) throw new Error('Choose a model for this new ChatGPT run');
       const input = observation(w, a);
       const decisionInputVersion = groundedInput(w) ? w.decisionInputVersion : null;
-      const policy = w.version === 'world-v4' ? w.recovery : null;
+      const policy = isV4(w) ? w.recovery : null;
       let result;
       for (let automaticRetry = 0; ; automaticRetry++) {
         if (this.generation !== generation) throw this.cancelled();

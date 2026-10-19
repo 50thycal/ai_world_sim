@@ -1,3 +1,26 @@
+# v0.5.0 village economy — 2026-10-19
+
+- The previous live v4 Renewable village baseline completed ten days, 1,440 applied decisions and
+  all six residents at health 100, with no starvation/raw eating or failed requests. Inspection of
+  all 4,503 scientific rows found no recurrence of the narrow explicit eating-threshold contradiction.
+  Run `899c0cbe-61d7-49a0-8976-96b9239331df`, report retrieved `2026-10-19T15:27:43.044Z`.
+  This is evidence for the baseline input fix, not model evidence for the new economy.
+- `npm run check` and 91 local tests pass. Market tests cover seller escrow, exact-price acceptance,
+  one winner among two buyers, own/old/changed offers, insufficient coins, one listing per resident,
+  cancellation/expiry refunds, skill/tool recipes, durability, wallet privacy and SQLite reload.
+- A ten-day scripted demo completed with 14 tool trades, 14 tools crafted/activated, six healthy
+  residents and 48 conserved coins. A full 10-day fake-inference run using only each resident's
+  observation, sharing surplus and using pantry meals, preserves 240 hourly rounds, 1,440 successful
+  proposals plus one recorded timeout/retry, ten daily summaries and health 100 for all residents.
+  A self-reliant policy without sharing incurred starvation; adequate supply does not guarantee
+  successful individual decisions or distribution. An idle policy also damages health with food left.
+- A disposable fake Codex transport verifies that real v5 adapter calls send the exact recorded
+  observation and expanded schema. No new provider/model inference or production mutations occurred.
+- Browser acceptance is extended to create paused v5 runs, show all six actual escrow offers and
+  complete a real engine purchase at desktop/phone sizes, with no horizontal overflow or page errors.
+  Local browser binaries are unavailable; GitHub CI must pass before deployment. Screenshots are
+  uploaded in the existing `browser-acceptance` artifact. This is viewport emulation, not a physical phone.
+
 # v0.4.1 bounded timeout recovery — 2026-10-18
 
 - Live incident: run `30f567c6-fe5c-4c97-bea9-7f724b7ef0b8`, request

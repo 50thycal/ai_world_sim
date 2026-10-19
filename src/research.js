@@ -1,4 +1,4 @@
-import { APP_VERSION, VERSION, decodeFrame, metrics } from './world.js';
+import { APP_VERSION, LATEST_VERSION, decodeFrame, metrics } from './world.js';
 import { resources } from './diagnostics.js';
 
 const ROOT = '/api/research';
@@ -25,6 +25,7 @@ export class Research {
       tick: w.tick, maxTicks: w.maxTicks, calls: w.calls, maxCalls: w.maxCalls,
       plannedCalls: w.plannedCalls ?? null, recovery: w.recovery ?? null, retriesUsed: w.retriesUsed ?? null,
       decisionInputVersion: w.decisionInputVersion ?? null,
+      economyVersion: w.economy?.version ?? null,
       inputTokens: w.inputTokens, outputTokens: w.outputTokens, completedActions: w.completedActions,
       metrics: metrics(w), recordCounts: counts,
       frames: this.db.prepare('SELECT count(*) n FROM frames WHERE run=?').get(w.id).n,
@@ -90,7 +91,7 @@ export class Research {
   get(url) {
     const path = url.pathname.replace(/\/$/, '');
     if (path === ROOT) return { status: 200, body: {
-      format: 'ai-world-research-api-v1', appVersion: APP_VERSION, latestWorldVersion: VERSION, codeRevision: revision(),
+      format: 'ai-world-research-api-v1', appVersion: APP_VERSION, latestWorldVersion: LATEST_VERSION, codeRevision: revision(),
       access: 'Public read-only simulation evidence, matching the spectator world. No owner cookie or provider credentials required.',
       currentRunId: this.store.world.id, maxPageSize: LIMIT,
       links: { runs: `${ROOT}/runs`, runtime: `${ROOT}/runtime`, currentReport: `${ROOT}/runs/${this.store.world.id}` },

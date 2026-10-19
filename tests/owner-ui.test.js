@@ -76,7 +76,19 @@ test('v3 runs show their experimental condition and behavior ledger, and new run
  assert.match(element('thefts').innerHTML,/1 <em>\/ 3 tries/);assert.match(element('gini').innerHTML,/0\.42/);assert.match(element('orchard').innerHTML,/^6 /);
  assert.match(element('inspector').innerHTML,/BEHAVIOR RECORD/);assert.match(element('inspector').innerHTML,/community-minded/);
  element('scenario').value='inequality';element('personas').checked=true;element('model').value='';await element('new-run').onclick();
- assert.deepEqual(sent,{mode:'demo',model:'',scenario:'inequality',personas:true,days:10,socialStart:true});
+ assert.deepEqual(sent,{mode:'demo',model:'',scenario:'inequality',economy:false,personas:true,days:10,socialStart:true});
+});
+
+test('market view escapes resident text and owner controls explicitly select economy or baseline',async()=>{
+ let sent;const {element,state,render}=await fixture(async(path,options)=>{if(path==='/api/admin/new')sent=JSON.parse(options.body);});
+ state.world=newWorld('demo',null,{economy:true});state.world.agents[0].name='<script>bad()</script>';
+ state.world.economy.offers=[{id:1,sellerId:'v1',seller:'<img onerror=bad()>',item:'tool',price:2,expiresAt:144}];
+ render();assert.equal(element('market-section').hidden,false);assert.match(element('market-summary').textContent,/48 coins/);
+ assert.ok(!element('market-offers').innerHTML.includes('<img'));assert.ok(!element('market-roles').innerHTML.includes('<script>'));
+ assert.match(element('inspector').innerHTML,/LIVELIHOOD/);
+ element('economy').checked=true;element('economy').onchange();assert.equal(element('scenario').value,'sustainable');
+ await element('new-run').onclick();assert.equal(sent.economy,true);assert.equal(sent.scenario,'sustainable');
+ state.world=newWorld();render();assert.equal(element('market-section').hidden,true);
 });
 
 test('v4 duration controls update the budget, preserve midnight labels and expose private social notes',async()=>{

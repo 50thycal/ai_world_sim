@@ -1,5 +1,5 @@
 const distance = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-const SOCIAL_EVENTS = new Set(['talk', 'give', 'steal', 'share', 'take', 'gather', 'cook']);
+const SOCIAL_EVENTS = new Set(['talk', 'give', 'steal', 'share', 'take', 'gather', 'cook', 'trade', 'offer', 'craft']);
 const profile = (other, tick) => ({ id: other.id, name: other.name, firstSeenTick: tick, lastSeenTick: tick,
   heardMessages: 0, conversationsStarted: 0, giftsReceived: 0, giftsGiven: 0, theftsSuffered: 0,
   theftsWitnessed: 0, firstWords: null, lastWords: null, recentEvents: [] });
