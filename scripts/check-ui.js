@@ -33,7 +33,7 @@ try {
     await page.getByRole('button', { name: 'Owner controls ↗' }).click();
     assert.equal(await page.getByLabel('Simulation days').inputValue(), '10');
     assert.equal(await page.getByLabel('Encourage introductions on arrival').isChecked(), true);
-    await page.getByLabel('Condition', { exact: true }).selectOption('sustainable');
+    await page.locator('#scenario').selectOption('sustainable');
     await page.getByLabel('Simulation days').fill('3');
     assert.match(await page.locator('#run-budget').innerText(), /432 planned.*12 retries.*444 model requests/);
     // Check layout and owner form at the actual phone viewport, not a cropped desktop image.
