@@ -81,6 +81,12 @@ diagnostics or a counter reset after a container replacement does not prove a cl
 
 ## Comparing finite and renewable conditions
 
+From app v0.4.3, newly created v4 runs record `decisionInputVersion: "current-facts-v1"`.
+The report's run summary exposes this field; null means the legacy input. New inputs lead with
+engine-derived current facts/eating eligibility and omit old rationales from recent plans/tasks.
+Existing runs retain their old observations and instructions. Match the input treatment as well
+as ecology, model and arrival framing when comparing behavior. See [the investigation](DECISION_GROUNDING.md).
+
 App v0.4.2 adds `sustainable` (Renewable village): food and wood each start/cap at 24 and replenish
 0.5 units/hour, including from zero. `scenario.regeneration: "fixed"` is copied into the run. Plenty
 keeps finite stocks, and new runs describe them as initial supplies rather than current abundance.

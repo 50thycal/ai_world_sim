@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { failureCode } from './diagnostics.js';
-import { INSTRUCTIONS } from './codex.js';
+import { instructionsFor } from './codex.js';
 import { slotAttempts, retriesUsed, transientFailure, RETRY_DELAYS } from './recovery.js';
-import { advance, assign, demoDecision, observation, decisionSchema, hourly, decisionDue, DECISION_INTERVAL, routineOnly, APP_VERSION } from './world.js';
+import { advance, assign, demoDecision, observation, decisionSchema, groundedInput, hourly, decisionDue, DECISION_INTERVAL, routineOnly, APP_VERSION } from './world.js';
 
 export class Runner {
   constructor(store, codex, diagnostics = { emit() {} }, { retryDelays = RETRY_DELAYS } = {}) {
@@ -26,6 +26,7 @@ export class Runner {
       if (w.calls >= w.maxCalls) throw new Error(`${w.maxCalls}-request run budget reached`);
       if (!w.model) throw new Error('Choose a model for this new ChatGPT run');
       const input = observation(w, a);
+      const decisionInputVersion = groundedInput(w) ? w.decisionInputVersion : null;
       const policy = w.version === 'world-v4' ? w.recovery : null;
       let result;
       for (let automaticRetry = 0; ; automaticRetry++) {
@@ -40,9 +41,9 @@ export class Runner {
         w.calls++; this.store.save([{ kind: 'request', requestId, requestedAt: new Date().toISOString(), appVersion: APP_VERSION, actor: a.name, actorId: a.id, tick: w.tick, number: w.calls, source: 'chatgpt', model: w.model,
           codeRevision: /^[a-f0-9]{40}$/.test(process.env.RAILWAY_GIT_COMMIT_SHA || '') ? process.env.RAILWAY_GIT_COMMIT_SHA : null,
           ...(policy ? { attemptNumber: slot.count + 1, retryOf: slot.previousRequestId, automaticRetry: automaticRetry > 0, recoveryPolicyVersion: policy.version } : {}),
-          input: { observation: input, instructions: INSTRUCTIONS, outputSchema: decisionSchema(w.version), effort: 'low' } }]);
+          input: { observation: input, instructions: instructionsFor(decisionInputVersion), outputSchema: decisionSchema(w.version), effort: 'low', decisionInputVersion } }]);
         this.pendingName = a.name;
-        const context = { requestId, runId: w.id, worldVersion: w.version, actorId: a.id, tick: w.tick, requestNumber: w.calls };
+        const context = { requestId, runId: w.id, worldVersion: w.version, actorId: a.id, tick: w.tick, requestNumber: w.calls, decisionInputVersion };
         this.activeRequest = context;
         this.diagnostics.emit({ event: 'decision_requested', ...context, model: w.model });
         try { result = await this.codex.decide(input, w.model, context); }

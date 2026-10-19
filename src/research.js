@@ -24,6 +24,7 @@ export class Research {
       status: w.tick >= w.maxTicks ? 'completed' : w.running ? 'running' : 'paused', pauseReason: w.pauseReason,
       tick: w.tick, maxTicks: w.maxTicks, calls: w.calls, maxCalls: w.maxCalls,
       plannedCalls: w.plannedCalls ?? null, recovery: w.recovery ?? null, retriesUsed: w.retriesUsed ?? null,
+      decisionInputVersion: w.decisionInputVersion ?? null,
       inputTokens: w.inputTokens, outputTokens: w.outputTokens, completedActions: w.completedActions,
       metrics: metrics(w), recordCounts: counts,
       frames: this.db.prepare('SELECT count(*) n FROM frames WHERE run=?').get(w.id).n,
