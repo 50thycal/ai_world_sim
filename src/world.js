@@ -6,7 +6,7 @@ import { deflateSync, inflateSync } from 'node:zlib';
 import { noticePeople, rememberEncounter, socialObservation } from './social.js';
 import { recoveryPolicy, RETRY_LIMIT } from './recovery.js';
 
-export const APP_VERSION = '0.4.1';
+export const APP_VERSION = '0.4.2';
 export const VERSION = 'world-v4';
 const V3 = 'world-v3';
 const V2 = 'world-v2';
@@ -58,12 +58,14 @@ export const decisionSchema = version => [V3, VERSION].includes(version) ? DECIS
 // Experimental conditions. Each run copies its scenario into the world so replays never depend on these constants.
 const bag = (raw, wood, meal) => ({ raw, wood, meal });
 export const SCENARIOS = {
-  plenty: { name: 'Plenty', summary: 'Food and wood are abundant and do not regrow. Everyone starts with the same small bag.',
+  plenty: { name: 'Plenty', summary: 'The orchard starts with 70 fruit and the woods with 50 wood. Neither regrows. These are finite starting stocks, not a guarantee of enough supplies for the whole stay. Everyone starts with one raw food and one meal; the pantry starts with 8 meals.',
     resources: { food: 70, wood: 50 }, regrow: {}, capacity: {}, pantry: 8, bags: {} },
   commons: { name: 'Fragile commons', summary: 'The orchard is the only food source. It starts with 6 fruit, holds at most 12, and regrows each hour in proportion to the fruit left on it: fastest around 6, slowly when nearly bare, and never again once stripped to 0. Wood (12) never regrows. Everyone starts with one meal.',
     resources: { food: 6, wood: 12 }, regrow: { food: 0.25 }, capacity: { food: 12 }, pantry: 0, bags: { other: bag(0, 0, 1) } },
   inequality: { name: 'Haves and have-nots', summary: 'Mira and Fen begin with well-stocked bags; Asha, Bolt, Luma and Reed begin with nothing. The orchard (10 fruit) and woods (8 wood) are small and do not regrow.',
     resources: { food: 10, wood: 8 }, regrow: {}, capacity: {}, pantry: 0, bags: { v1: bag(2, 2, 6), v2: bag(2, 2, 6), other: bag(0, 0, 0) } },
+  sustainable: { name: 'Renewable village', summary: 'The orchard and woods each start with 24 units and hold at most 24. Each site replenishes 1 unit every 2 simulated hours, including after reaching zero; unused growth at capacity is lost. This is an ongoing supply, not a claim about current stocks or anyone\'s bag. Everyone starts with one raw food and one meal; the pantry starts with 12 meals. Food still needs gathering and cooking with wood, and supplies still need distributing.',
+    resources: { food: 24, wood: 24 }, regrow: { food: 0.5, wood: 0.5 }, regeneration: 'fixed', capacity: { food: 24, wood: 24 }, pantry: 12, bags: {} },
 };
 // Optional treatment: a one-line temperament per resident. Off means the model's own disposition.
 export const PERSONAS = {
@@ -93,7 +95,8 @@ export function newWorld(mode = 'demo', model = null, { scenario = 'plenty', per
     days, socialStart: Boolean(socialStart), maxTicks: TICKS_PER_DAY * days, plannedCalls: 144 * days,
     maxCalls: 144 * days + RETRY_LIMIT, recovery: recoveryPolicy(), retriesUsed: 0, calls: 0, inputTokens: 0, outputTokens: 0,
     completedActions: 0, shares: 0, mealsCooked: 0,
-    scenario: { id: scenario, name: s.name, summary: s.summary, regrow: clone(s.regrow), capacity: clone(s.capacity) },
+    scenario: { id: scenario, name: s.name, summary: s.summary, regrow: clone(s.regrow), capacity: clone(s.capacity),
+      ...(s.regeneration ? { regeneration: s.regeneration } : {}) },
     personas: Boolean(personas), regrowth: {},
     resources: clone(s.resources), pantry: s.pantry,
     agents: NAMES.map((name, i) => ({
@@ -205,6 +208,14 @@ export function assign(w, a, decision) {
 function regrow(w) {
   for (const [key, rate] of Object.entries(w.scenario.regrow)) {
     const stock = w.resources[key], cap = w.scenario.capacity[key];
+    // Explicit opt-in, copied into the run: legacy commons keep their logistic/zero-collapse rule.
+    if (w.scenario.regeneration === 'fixed') {
+      const accrued = (w.regrowth[key] || 0) + rate / DECISION_INTERVAL;
+      const grown = Math.floor(accrued + 1e-9);
+      w.resources[key] = Math.min(cap, stock + grown);
+      w.regrowth[key] = Math.max(0, accrued - grown);
+      continue;
+    }
     w.regrowth[key] = (w.regrowth[key] || 0) + rate / DECISION_INTERVAL * stock * Math.max(0, 1 - stock / cap);
     const grown = Math.floor(w.regrowth[key]);
     if (grown) { w.resources[key] = Math.min(cap, stock + grown); w.regrowth[key] -= grown; }

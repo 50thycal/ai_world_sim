@@ -79,6 +79,20 @@ diagnostics or a counter reset after a container replacement does not prove a cl
    retrieval UTC, run/request IDs, versions and coverage limits. Different conditions or versions and
    a single run cannot establish causality; reported tokens are not exact billing.
 
+## Comparing finite and renewable conditions
+
+App v0.4.2 adds `sustainable` (Renewable village): food and wood each start/cap at 24 and replenish
+0.5 units/hour, including from zero. `scenario.regeneration: "fixed"` is copied into the run. Plenty
+keeps finite stocks, and new runs describe them as initial supplies rather than current abundance.
+Saved runs retain their original text, including older Plenty inputs claiming abundance. Compare
+recorded inputs, not today's catalog text. No global live stocks were added to villager observations.
+
+The renewable supply can produce 24 cooked meals/day versus 19.44 meals/day of collective hunger.
+A deterministic observation-only reference policy survives ten days without health loss; this is
+physical feasibility evidence, not a model result. Initial endowments also differ from Plenty, so
+comparisons change the whole condition. Zero final food Gini can mean every bag is empty; always
+read health, starvation and absolute food stocks alongside inequality and transfer counts.
+
 ## Access and remaining boundaries
 
 The research API deliberately publishes **read-only simulation evidence**, consistent with the

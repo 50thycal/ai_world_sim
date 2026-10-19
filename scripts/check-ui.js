@@ -33,6 +33,7 @@ try {
     await page.getByRole('button', { name: 'Owner controls ↗' }).click();
     assert.equal(await page.getByLabel('Simulation days').inputValue(), '10');
     assert.equal(await page.getByLabel('Encourage introductions on arrival').isChecked(), true);
+    await page.locator('#scenario').selectOption('sustainable');
     await page.getByLabel('Simulation days').fill('3');
     assert.match(await page.locator('#run-budget').innerText(), /432 planned.*12 retries.*444 model requests/);
     // Check layout and owner form at the actual phone viewport, not a cropped desktop image.
@@ -40,6 +41,8 @@ try {
     await page.screenshot({ path: `${screenshots}/v4-${name}-setup.png` });
     await page.getByRole('button', { name: 'Start a new v4 paused run' }).click();
     await page.getByText('New run ready. Press Play village to begin.', { exact: true }).waitFor();
+    assert.equal(app.store.world.scenario.id, 'sustainable');
+    await page.getByText(/Each site replenishes 1 unit every 2 simulated hours/).waitFor();
     assert.equal(app.store.world.days, 3); assert.equal(app.store.world.maxCalls, 444); assert.equal(app.store.world.running, false);
     assert.deepEqual(errors, []);
     await context.close();
