@@ -26,3 +26,7 @@ start/resume/reset a run just to inspect it. Model dialogue and stated reasons a
 - Recovery is operational, not a world rule: preserve failed attempts and retry links; never refund usage.
 - At most two automatic retries at a time and twelve shared extra attempts per v4 run. Owner Pause
   and shutdown cancel backoff. Never auto-resume on restart or retry auth/quota/invalid/OOM failures.
+
+- Renewable village explicitly opts into fixed food/fuel replenishment from zero. Legacy scenarios
+  keep their saved text and physical rules. Use the observation-only reference-policy test for
+  feasibility; it is not model behavior evidence or a live inference fallback.

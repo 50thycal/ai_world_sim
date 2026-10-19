@@ -8,7 +8,7 @@ const VERBS = { gather: 'Gathering', give: 'Giving', steal: 'Stealing', take: 'T
 const ICONS = { give: '🎁', steal: '✋', take: '🥣', talk: '💬' };
 const DILEMMAS = ['give', 'steal', 'take', 'share', 'blocked', 'failure'];
 // Static copy keyed by scenario id; never interpolates run data into HTML.
-const QUESTIONS = { plenty: 'Who gathers?<br>Who cooks?<br>Who leaves a little<br>for someone else?', commons: 'Who holds back?<br>Who strips the trees?<br>Does anyone<br>say “enough”?', inequality: 'Do the haves<br>share?<br>Do the have-nots<br>ask, or take?' };
+const QUESTIONS = { sustainable: 'Who keeps supplies<br>moving?<br>Can cooperation<br>last ten days?', plenty: 'Who gathers?<br>Who cooks?<br>Who leaves a little<br>for someone else?', commons: 'Who holds back?<br>Who strips the trees?<br>Does anyone<br>say “enough”?', inequality: 'Do the haves<br>share?<br>Do the have-nots<br>ask, or take?' };
 let journalFilter = 'all';
 const nameOf = (w, id) => w.agents.find(b => b.id === id)?.name || id;
 const active = a => a.task ? `${VERBS[a.task.action] || a.task.action[0].toUpperCase() + a.task.action.slice(1)}${a.task.target ? ' · ' + nameOf(displayed.world, a.task.target) : ''}` : hourlyRun(displayed?.world) ? 'Between hourly decisions' : 'Considering the day';
@@ -24,7 +24,7 @@ function render() {
   $('mode').textContent = w.mode === 'demo' ? 'DEMO · SCRIPTED' : 'CHATGPT · LIVE DECISIONS';
   const finished = w.tick >= w.maxTicks, totalDays = w.days || Math.ceil(w.maxTicks / 288);
   $('clock').textContent = `Day ${finished ? totalDays : Math.floor(w.tick / 288) + 1}${w.days ? ' / ' + totalDays : ''} · ${finished ? '24:00' : time(w.tick)}`;
-  $('app-version').textContent = `App v${current.appVersion || '0.4.1'}`;
+  $('app-version').textContent = `App v${current.appVersion || '0.4.2'}`;
   $('run-version').textContent = `Simulation ${w.version.replace('world-','')} · Run ${w.id.slice(0,8)}`;
   $('decision-pace').textContent = hourlyRun(w) ? `Hourly decisions · ${Math.min(w.maxTicks/12,(w.nextDecisionTick || 0)/12)} / ${w.maxTicks/12} rounds · quiet time skips ahead` : 'v1 pilot preserved · start a fresh run to use v4';
   $('scenario-tag').textContent = w.scenario ? `CONDITION · ${w.scenario.name.toUpperCase()}${w.personas ? ' · TEMPERAMENTS' : ''}` : 'FIELD NOTE 001';

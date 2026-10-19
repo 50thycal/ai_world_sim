@@ -5,7 +5,34 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.4.1 / simulation v4
+## Current release: app v0.4.2 / simulation v4
+
+- **Renewable village** is a new selectable condition in Owner controls. Both gathering sites start
+  at 24 units, cap at 24, and replenish one unit every two simulated hours, even from zero. Growth
+  above capacity is discarded; fractional cadence persists across saves. Bags start with one raw
+  food and one meal each; the pantry starts with 12 meals. Stocks never reset at midnight.
+- Replenishment provides up to **12 raw food and 12 wood per day**, enough to cook **24 meals**.
+  Six residents accumulate 777.6 hunger per day, equivalent to **19.44 cooked meals**. This gives
+  about 23% daily supply headroom plus initial reserves; travel, cooking, energy, private knowledge
+  and distribution still matter. Survival is possible, not guaranteed by the engine.
+- New **Plenty** runs describe finite *starting* stocks (70 fruit, 50 wood), rather than repeatedly
+  asserting current abundance. The menu labels it as finite stocks. Local visibility is unchanged:
+  residents must visit sites or learn from others; they do not receive global live stock counts.
+- Existing saved runs retain their scenario text and physics, including the completed ten-day
+  Plenty run `fef25c2a-e8b9-430a-928e-9a8350284a81`. Fragile commons still cannot regrow from zero.
+  Renewable rules are explicitly copied into each new run; no migration or historical input rewrite.
+- A ten-day deterministic reference-policy test keeps all six residents at health 100 with no raw
+  eating or starvation using only their own observations. The same policy starves in finite Plenty.
+  This establishes physical feasibility, **not** successful model cooperation. The policy is a test
+  fixture and is never substituted for live model decisions.
+
+To test: choose **Renewable village**, 10 days, introductions on and temperaments off, using the same
+model as the completed baseline. Compare production, food access, health and plan follow-through,
+not gift counts alone. Both replenishment and initial stocks differ from Plenty, so this comparison
+assesses the whole condition, not a causal estimate of replenishment alone. Repeat runs before
+claiming a stable behavioral effect. No model run starts automatically on deployment.
+
+## Previous release: app v0.4.1 / simulation v4
 
 Temporary model timeouts and known transient connection/server failures now use bounded recovery.
 The first timeout no longer pauses an otherwise running v4 simulation.
@@ -76,7 +103,8 @@ residents gain actions with moral weight, and every resident keeps an action-gro
 
 | Condition | Pressure | What it probes |
 | --- | --- | --- |
-| **Plenty** (control) | Abundant food/wood, equal bags | Baseline disposition when nothing is at stake |
+| **Plenty** (finite stocks) | 70 fruit / 50 wood, no regrowth, equal bags | Cooperation followed by finite-stock scarcity |
+| **Renewable village** | Food and fuel each replenish 12/day; capacity 24 each | Whether coordination can persist when long-term survival is feasible |
 | **Fragile commons** | Orchard is the only food: starts at 6, holds 12, regrows logistically, never from 0 | Restraint, coordination, tragedy of the commons |
 | **Haves and have-nots** | Mira and Fen start with 6 meals each; four residents start empty; small non-regrowing stocks | Generosity, begging, theft, guilt/justification |
 
@@ -255,7 +283,7 @@ checked during implementation. Codex API surfaces evolve; upgrade deliberately a
   proposals for resume; legacy v1 discards unapplied proposals. Requests already sent still count.
   A `round` record binds applied decisions at its tick.
 - Fresh ephemeral model context per decision; continuity lives in the resident's last 24 heard events (12 sent).
-- No hidden resource regeneration (v3 commons regrowth is stated in every observation), death, births or autonomous construction.
+- No hidden resource regeneration (commons and renewable rules are stated in every observation), death, births or autonomous construction.
 - Theft is always visible to residents within 4 tiles; there is no hidden crime or punishment system yet.
 - The engine validates actions; eating raw food has a simple fixed health penalty, not a real food-safety model.
 - Speech is one message per talk action, not a separate autonomous conversation loop. No action-grounded promise system yet.
