@@ -5,7 +5,55 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.4.3 / simulation v4
+## Current release: app v0.5.0 / optional village economy v5
+
+Residents have more to do once dinner is secure: practice a trade, make gathering tools, post goods
+for sale and choose whether to accept someone else's price. Owner controls defaults to **Professions,
+tools & market (v5)** with **Renewable village**. Uncheck the economy to create another v4 survival
+baseline. Existing worlds, including the completed healthy ten-day baseline, keep their original rules.
+
+| Residents | Starting specialty | Physical advantage |
+| --- | --- | --- |
+| Mira, Luma | Grower | Up to 3 ingredients per harvest, instead of 2 |
+| Fen, Reed | Woodcutter | Up to 3 wood per harvest, instead of 2 |
+| Asha | Cook | 3 meals per ingredient + wood, instead of 2 |
+| Bolt | Craftsperson | 1 wood per tool, instead of 2 |
+
+Everyone can do every job. After six successful jobs in a skill, work takes two five-minute ticks
+instead of three; travel and the hourly review cadence remain. These starting specialties are assigned
+experimental endowments, not professions the agents spontaneously invented.
+
+- **Tools:** `craft` at the meeting green/workbench makes one tool. Carrying an unused tool activates
+  it on the next successful gathering job; it adds up to one unit per harvest for six successful jobs.
+  Failed harvests do not spend durability. Only unused tools can be sold, given or stolen.
+- **Market:** residents post one item for 1–12 coins. The item moves from their bag into market escrow.
+  One live offer per resident keeps at most six listings. A buyer walks to the green and explicitly
+  accepts the exact offer ID, item and price. Goods and coins transfer together; an unavailable,
+  changed, unaffordable or already purchased offer becomes an in-world blocked action.
+- **Coins:** eight per resident, 48 total, with no faucet, wages, credit or recurring grants. Market
+  volume can exceed 48 because coins circulate; it is not money creation. Coins do not feed anyone.
+- **Unsold goods:** cancelling or waiting 12 simulated hours returns escrow to the seller once.
+  Wallets, equipped tools and skill histories remain private to each resident. Profession listings,
+  sale offers and completed trades are public information in every hourly observation.
+- **Observer:** market stalls appear on the map, a public market panel shows offers and exchanges,
+  resident inspectors show livelihoods/tools/practice, and daily research summaries add trades,
+  coin volume, crafting and listings. The scripted demo exercises trading; it is not model evidence.
+
+The input still leads with grounded current facts, now including own coins, capabilities and visible
+local resource counts. The model is explicitly invited to consider a livelihood and tools alongside
+survival; trading and specialization are choices, not engine rewards. Food/wood replenishment and
+hunger/damage are unchanged, but specialist yields and crafting costs change production economics.
+Compare this as a new bundled condition, not a causal test of trading alone. No human visitor buys
+on the residents' behalf, and no production run is started or replaced by deployment.
+
+Local validation includes 91 tests, two-buyer/stale-offer/expiration conservation, privacy and saved
+v4/v5 replays, real-adapter protocol tests with a fake transport, and full ten-day scripted/mock
+runs. A scripted demo completed with 14 tool purchases, all six residents healthy and all 48 coins
+accounted for. An observation-only policy that shares surplus and uses the pantry also stays healthy;
+residents choosing not to eat still take starvation damage. None establishes live model demand for
+the market. After deployment, create a **new v5 Renewable village** run to observe that.
+
+## Previous release: app v0.4.3 / simulation v4
 
 New runs record `decisionInputVersion: "current-facts-v1"`. Their model input starts with an
 authoritative current-state block: hunger and its direction, own inventory, the engine's eating

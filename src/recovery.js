@@ -18,7 +18,7 @@ export function slotAttempts(store, actor) {
 // No inference, refunds, historical decision edits, or automatic resume on server startup.
 export function enableRecovery(store) {
   const w = store.world;
-  if (w.version !== 'world-v4' || w.recovery) return;
+  if (!['world-v4', 'world-v5'].includes(w.version) || w.recovery) return;
   const previousMaxCalls = w.maxCalls;
   w.plannedCalls = w.maxTicks / 12 * w.agents.length;
   w.recovery = recoveryPolicy();

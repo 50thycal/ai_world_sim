@@ -6,6 +6,7 @@ import { createHmac } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../src/server.js';
+import { assign, advance } from '../src/world.js';
 
 const dir = mkdtempSync(join(tmpdir(), 'village-browser-'));
 const app = createApp({ dataDir: dir, codex: { ready: false, stop() {}, status: () => ({ connected: false, available: true }) }, intervalMs: 100000 });
@@ -39,9 +40,29 @@ try {
     // Check layout and owner form at the actual phone viewport, not a cropped desktop image.
     assert.ok(await page.locator('#owner-dialog').evaluate(e => e.getBoundingClientRect().right <= innerWidth));
     await page.screenshot({ path: `${screenshots}/v4-${name}-setup.png` });
-    await page.getByRole('button', { name: 'Start a new v4 paused run' }).click();
+    await page.getByRole('button', { name: 'Start a new paused run' }).click();
     await page.getByText('New run ready. Press Play village to begin.', { exact: true }).waitFor();
     assert.equal(app.store.world.scenario.id, 'sustainable');
+    assert.equal(app.store.world.version, 'world-v5');
+    await page.getByRole('button', { name: 'Close owner controls' }).click();
+    await page.getByRole('heading', { name: 'The village market' }).waitFor();
+    assert.equal(await page.locator('#market-roles > div').count(), 6);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: `${screenshots}/v5-${name}-market.png`, fullPage: true });
+    // Exercise full stalls and a real engine transfer in disposable scripted data.
+    for (const a of app.store.world.agents) assign(app.store.world, a, { action: 'offer', target: 'square', item: 'meal', price: 2, offerId: 0, message: '', reason: 'Browser fixture lists a meal.' });
+    while (app.store.world.agents.some(a => a.task)) app.store.save(advance(app.store.world), true);
+    await page.reload(); await page.locator('.offer-card').first().waitFor();
+    assert.equal(await page.locator('.offer-card').count(), 6);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    const offer = app.store.world.economy.offers.find(o => o.sellerId === 'v1');
+    assign(app.store.world, app.store.world.agents[1], { action: 'buy', target: 'v1', item: offer.item, price: offer.price, offerId: offer.id, message: '', reason: 'Browser fixture accepts a listing.' });
+    while (app.store.world.agents[1].task) app.store.save(advance(app.store.world), true);
+    await page.reload(); await page.locator('#market-trades').getByText(/Fen.*bought 1 meal from Mira for 2 coins/).waitFor();
+    assert.match(await page.locator('#inspector').innerText(), /LIVELIHOOD/);
+    assert.equal(await page.locator('.offer-card').count(), 5);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: `${screenshots}/v5-${name}-trade.png`, fullPage: true });
     await page.getByText(/Each site replenishes 1 unit every 2 simulated hours/).waitFor();
     assert.equal(app.store.world.days, 3); assert.equal(app.store.world.maxCalls, 444); assert.equal(app.store.world.running, false);
     assert.deepEqual(errors, []);

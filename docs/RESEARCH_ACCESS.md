@@ -81,6 +81,31 @@ diagnostics or a counter reset after a container replacement does not prove a cl
 
 ## Comparing finite and renewable conditions
 
+App v0.5.0 adds optional `world-v5`, with `economyVersion: 1` in run summaries and the entire
+saved `world.economy` state in reports/replays. This condition requires Renewable village. It adds
+assigned professions, skill practice, consumable gathering tools, a fixed 48-coin supply and
+one-item escrow offers. Schemas add `price` and `offerId`; the exact expanded input/schema is
+persisted before inference. V4 baselines and older schemas remain unchanged.
+
+New physical records include `craft`, `offer`, `trade`, `cancel_offer` and `offer_expired`; impossible
+plans remain `blocked`. A trade row names the buyer (`actorId`), seller (`targetId`/`sellerId`), exact
+offer ID, item and price. Offers reserve an item immediately on successful posting, not on proposal.
+Expired/cancelled listings return it exactly once; a completed trade moves both item and coins.
+An unexpired listing at the run's end still owns one escrowed good; include that good in conservation.
+Food Gini includes each seller's escrowed meal/raw food, but is not a coin-wealth measure.
+
+V5 daily summaries add `trades`, `coinsTraded`, `toolsCrafted`, `toolsUsed`, `offersPosted`, and resident
+coins/profession/skills/equipped-tool state. `toolsUsed` counts newly activated tools, not individual
+durability charges. Full trade/craft/offer records persist permanently; the world's recent trade
+list retains only the latest 24 and observations show six. The permanent ledger is authoritative
+for a complete exchange history. Public offers/trade data intentionally reach all residents;
+other residents' bags, wallets, skill histories and private notebooks do not.
+
+Assigned professions and an explicit livelihood prompt are experimental treatments. Specialist
+output and tool recipes also change economics. V4 versus v5 does not isolate a single mechanism.
+Empty stalls or no purchases can be a valid model outcome. Scripted test sales are not evidence of
+model entrepreneurship, consent motives or emergent currency adoption.
+
 From app v0.4.3, newly created v4 runs record `decisionInputVersion: "current-facts-v1"`.
 The report's run summary exposes this field; null means the legacy input. New inputs lead with
 engine-derived current facts/eating eligibility and omit old rationales from recent plans/tasks.
