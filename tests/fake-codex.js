@@ -2,7 +2,7 @@
 import readline from 'node:readline';
 import {writeFileSync,existsSync} from 'node:fs';
 import {join} from 'node:path';
-let n=0;
+let n=0,threadParams;
 const send=x=>process.stdout.write(JSON.stringify(x)+'\n');
 for await(const line of readline.createInterface({input:process.stdin})){
  const m=JSON.parse(line);if(m.id===undefined)continue;
@@ -11,9 +11,11 @@ for await(const line of readline.createInterface({input:process.stdin})){
  case 'account/read':send({id:m.id,result:{account:{type:'chatgpt',planType:'test'}}});break;
  case 'model/list':send({id:m.id,result:{data:[{model:'test-model',displayName:'Test model',isDefault:true}]}});break;
  case 'account/login/start':send({id:m.id,result:{type:'chatgptDeviceCode',verificationUrl:'https://auth.openai.com/codex/device',userCode:'TEST-0000',loginId:'login-test'}});break;
- case 'thread/start':send({id:m.id,result:{thread:{id:'thread-'+(++n)}}});break;
+ case 'thread/start':threadParams=m.params;send({id:m.id,result:{thread:{id:'thread-'+(++n)}}});break;
  case 'turn/start':{
   const threadId=m.params.threadId,obs=JSON.parse(m.params.input[0].text);
+  // Test-only wire capture in a disposable fake account, never the production client.
+  if(obs.currentFacts||obs.name==='CaptureGrounding')writeFileSync(join(process.env.CODEX_HOME,'test-protocol.json'),JSON.stringify({thread:threadParams,turn:m.params}));
   send({id:m.id,result:{turn:{id:'turn-'+n,status:'inProgress'}}});
   if(obs.name==='IgnoreTermination'){process.on('SIGTERM',()=>{});writeFileSync(join(process.env.CODEX_HOME,'test-worker.pid'),String(process.pid));setInterval(()=>{},1000);break;}
   if(obs.name==='TimeoutWorker'){setInterval(()=>{},1000);break;}

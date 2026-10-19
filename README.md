@@ -5,7 +5,33 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.4.2 / simulation v4
+## Current release: app v0.4.3 / simulation v4
+
+New runs record `decisionInputVersion: "current-facts-v1"`. Their model input starts with an
+authoritative current-state block: hunger and its direction, own inventory, the engine's eating
+threshold, food sources already within reach, and whether eating is currently possible. Recent
+plans and current tasks still show actions/progress, but no longer repeat old model explanations
+or intended speech as facts. Those explanations remain in scientific records, saved worlds and
+replays. Instructions explicitly distinguish current facts from historical claims.
+
+The investigation found eight explicit threshold contradictions in the first 168 saved decisions
+of the renewable pilot. Asha's recorded hunger was 76.6 with six meals while her explanation said
+it was below the eating threshold of 40. The exact saved input matches its replay frame. Stale
+explanations were fed into subsequent inputs; that is a plausible amplifier, not a proven account
+of the model's internal cause. See [the evidence and validation plan](docs/DECISION_GROUNDING.md).
+
+This is a versioned input treatment, not a new survival policy: it never selects eating, rejects a
+valid non-eating choice, adds inference retries, supplies food or changes starvation. Renewable
+food/fuel remains physically sufficient under the tested reference policy; uncoordinated residents
+can still starve. Existing runs keep their original observations/instructions, including partial
+rounds, so deploying does not mix treatments within a run.
+
+After deployment, start a **new Renewable village** run with the same model, days, arrival framing
+and temperament setting to evaluate behavior before adding economic mechanics. The research report
+exposes the input version. Local tests establish input delivery and unchanged physics, not that a
+live model will stop making factual errors. No production run was started or resumed for this fix.
+
+## Previous release: app v0.4.2 / simulation v4
 
 - **Renewable village** is a new selectable condition in Owner controls. Both gathering sites start
   at 24 units, cap at 24, and replenish one unit every two simulated hours, even from zero. Growth

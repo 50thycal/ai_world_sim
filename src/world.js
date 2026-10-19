@@ -6,7 +6,8 @@ import { deflateSync, inflateSync } from 'node:zlib';
 import { noticePeople, rememberEncounter, socialObservation } from './social.js';
 import { recoveryPolicy, RETRY_LIMIT } from './recovery.js';
 
-export const APP_VERSION = '0.4.2';
+export const APP_VERSION = '0.4.3';
+export const GROUNDED_INPUT = 'current-facts-v1';
 export const VERSION = 'world-v4';
 const V3 = 'world-v3';
 const V2 = 'world-v2';
@@ -14,6 +15,7 @@ const V2 = 'world-v2';
 export const hourly = w => [V2, V3, VERSION].includes(w.version);
 export const isV3 = w => [V3, VERSION].includes(w.version);
 export const isV4 = w => w.version === VERSION;
+export const groundedInput = w => isV4(w) && w.decisionInputVersion === GROUNDED_INPUT;
 export const TICKS_PER_DAY = 288;
 export const DEFAULT_DAYS = 10;
 export const MAX_DAYS = 30;
@@ -92,7 +94,8 @@ export function newWorld(mode = 'demo', model = null, { scenario = 'plenty', per
     version: VERSION, id: randomUUID(), created: new Date().toISOString(),
     mode, model, running: false, pauseReason: 'Ready for an owner to start', tick: 0,
     nextDecisionTick: 0, decisionRound: null, skippedTicks: 0,
-    days, socialStart: Boolean(socialStart), maxTicks: TICKS_PER_DAY * days, plannedCalls: 144 * days,
+    days, socialStart: Boolean(socialStart), decisionInputVersion: GROUNDED_INPUT,
+    maxTicks: TICKS_PER_DAY * days, plannedCalls: 144 * days,
     maxCalls: 144 * days + RETRY_LIMIT, recovery: recoveryPolicy(), retriesUsed: 0, calls: 0, inputTokens: 0, outputTokens: 0,
     completedActions: 0, shares: 0, mealsCooked: 0,
     scenario: { id: scenario, name: s.name, summary: s.summary, regrow: clone(s.regrow), capacity: clone(s.capacity),
@@ -138,7 +141,7 @@ const RULES_V3 = ' give hands 1 item (meal, raw or wood) to the villager whose i
 
 export function observation(w, a) {
   const v3 = isV3(w);
-  return {
+  const o = {
     name: a.name, minute: w.tick * 5, day: Math.floor(w.tick / 288) + 1,
     ...(isV4(w) ? { totalDays: w.days, minuteOfDay: w.tick % TICKS_PER_DAY * 5, daysRemaining: w.days - Math.floor(w.tick / TICKS_PER_DAY),
       socialContext: socialObservation(w, a) } : {}),
@@ -154,6 +157,31 @@ export function observation(w, a) {
       .map(p => [p, w.resources[PLACES[p].kind]])),
     rules: (hourly(w) ? (isV4(w) ? RULES_V2.replace('24 per day.', `24 per day for ${w.days} days. Physical state, resources and relationships carry across midnight.`) : RULES_V2) : '') +
       (isV4(w) ? RULES.replace('live through the day;', `live through this ${w.days}-day stay;`) : RULES) + (v3 ? RULES_V3 : ''),
+  };
+  if (!groundedInput(w)) return o;
+  // Old intentions/explanations are not facts about the current world. Keep them in
+  // saved plans/replays, but do not feed their stale assertions back to the model.
+  o.myRecentPlans = o.myRecentPlans.map(({ reason, ...plan }) => plan);
+  if (o.currentTask) {
+    const { reason, message, ...task } = o.currentTask;
+    o.currentTask = task;
+  }
+  const pantryReachable = dist(a, PLACES.pantry) <= 1;
+  const sources = [a.inventory.meal > 0 && 'carried_meal', pantryReachable && w.pantry > 0 && 'pantry_meal',
+    a.inventory.raw > 0 && 'carried_raw'].filter(Boolean);
+  return {
+    // Serialize current facts before long social history, using the same threshold
+    // as the engine. Eligibility is information, never an automatic action.
+    currentFacts: {
+      asOfTick: w.tick, name: a.name, hunger: a.hunger, energy: a.energy, health: a.health,
+      inventory: clone(a.inventory),
+      hungerScale: '0 = full; 100 = starving. Higher hunger means a greater need to eat.',
+      eating: { minimumHunger: MIN_EAT_HUNGER, hungerRequirementMet: a.hunger >= MIN_EAT_HUNGER,
+        reachableFoodSources: sources, canEatNow: a.hunger >= MIN_EAT_HUNGER && sources.length > 0,
+        cookedMealHungerReduction: 40, rawFoodHungerReduction: 15, rawFoodHealthCost: 8 },
+      starvationDamage: { minimumHunger: 95, activeNow: a.hunger >= 95 },
+    },
+    ...o,
   };
 }
 

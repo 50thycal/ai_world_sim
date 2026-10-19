@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { createApp } from '../src/server.js';
-import { INSTRUCTIONS } from '../src/codex.js';
+import { instructionsFor } from '../src/codex.js';
 import { Research } from '../src/research.js';
 
 test('public research retrieves archived evidence with bounded stable pages, scoped frames and no owner powers', async () => {
@@ -84,7 +84,7 @@ test('exact private observation and protocol inputs persist before a failed infe
   const fake = { stop() {}, decide: async (input, model, context) => {
     const stored = app.store.records(1)[0];
     assert.equal(stored.kind, 'request'); assert.equal(stored.requestId, context.requestId);
-    assert.deepEqual(stored.input.observation, input); assert.equal(stored.input.instructions, INSTRUCTIONS);
+    assert.deepEqual(stored.input.observation, input); assert.equal(stored.input.instructions, instructionsFor(context.decisionInputVersion));
     assert.equal(stored.input.effort, 'low'); assert.equal(stored.model, model);
     assert.equal(stored.actorId, 'v1'); assert.ok(stored.requestedAt);
     assert.ok(input.nearbyVillagers.every(v => !Object.hasOwn(v, 'inventory') && !Object.hasOwn(v, 'memories')));
