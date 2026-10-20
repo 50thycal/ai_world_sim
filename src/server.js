@@ -94,7 +94,7 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
             return json(res, 200, store.export());
           }
         }
-        const files = { '/': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/style.css': ['style.css', 'text/css'] };
+        const files = { '/': ['index.html', 'text/html'], '/theme.js': ['theme.js', 'text/javascript'], '/app.js': ['app.js', 'text/javascript'], '/style.css': ['style.css', 'text/css'] };
         if (files[url.pathname]) {
           const [file, type] = files[url.pathname];
           res.writeHead(200, { 'Content-Type': `${type}; charset=utf-8`, 'Cache-Control': 'no-cache' });

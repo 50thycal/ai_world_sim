@@ -38,6 +38,16 @@ export function rpcFailure(error, method) {
   return 'Codex rejected request; check account access and CLI compatibility';
 }
 
+// Record only known RPC names and standard numeric error categories. Provider messages/data
+// may contain private details; never copy them into public diagnostics or run evidence.
+export function rpcDiagnostic(error, method) {
+  const methods = ['initialize','account/read','account/login/start','account/login/cancel','account/logout','model/list','thread/start','turn/start'];
+  const known = new Map([[-32700,'parse_error'],[-32600,'invalid_request'],[-32601,'method_not_found'],[-32602,'invalid_params'],[-32603,'internal_error']]);
+  const code = error?.code;
+  const valid = Number.isInteger(code) && code >= -32768 && code <= -32000;
+  return { rpcMethod: methods.includes(method) ? method : 'unknown', rpcErrorClass: known.get(code) || (valid && code >= -32099 ? 'server_error' : 'unknown'), ...(valid ? { rpcErrorCode: code } : {}) };
+}
+
 // Confirmed against the pinned CLI's generated CodexErrorInfo schema. Unknown variants stay unknown.
 export function providerFailure(info) {
   const names = ['contextWindowExceeded', 'sessionBudgetExceeded', 'usageLimitExceeded', 'rateLimitExceeded',
@@ -147,7 +157,7 @@ export class CodexClient extends EventEmitter {
       const p = this.pending.get(msg.id); this.pending.delete(msg.id); clearTimeout(p.timer);
       if (msg.error) {
         const detail = providerFailure(msg.error.data?.codexErrorInfo);
-        this.onDiagnostic({ event: 'codex_rpc_failed', phase: this.phase, ...detail });
+        this.onDiagnostic({ event: 'codex_rpc_failed', phase: this.phase, ...detail, ...rpcDiagnostic(msg.error, p.method) });
         this.lastError = rpcFailure(msg.error, p.method);
         const error = new Error(this.lastError); error.diagnosticCode = detail.providerCode === 'unknown' ? undefined : detail.providerCode;
         error.httpStatusCode = detail.httpStatusCode; p.reject(error);

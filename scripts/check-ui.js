@@ -30,6 +30,19 @@ try {
     assert.equal(await page.locator('#day-rows tr').count(), 2);
     assert.match(await page.locator('#inspector').innerText(), /SOCIAL NOTEBOOK/);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
+    assert.equal(await page.locator('body').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(17, 26, 23)');
+    await page.screenshot({ path: `${screenshots}/dark-${name}-world.png`, fullPage: true });
+    await page.getByRole('button',{name:'Switch to light mode'}).click();
+    await page.reload();await page.getByText('Day 3 / 10 · 00:00',{exact:true}).waitFor();
+    assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
+    assert.equal(await page.locator('body').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(245, 242, 233)');
+    await page.screenshot({path:`${screenshots}/light-${name}-world.png`,fullPage:true});
+    await page.getByRole('button',{name:'Switch to dark mode'}).click();
+    await page.reload();await page.getByText('Day 3 / 10 · 00:00',{exact:true}).waitFor();
+    assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
+    assert.equal(await page.evaluate(()=>localStorage.getItem('village-theme')),'dark');
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     await page.screenshot({ path: `${screenshots}/v4-${name}-world.png`, fullPage: true });
     await page.getByRole('button', { name: 'Owner controls ↗' }).click();
     assert.equal(await page.getByLabel('Simulation days').inputValue(), '10');
@@ -97,7 +110,7 @@ try {
     await page.screenshot({path:`${screenshots}/v6-${name}-batch.png`,fullPage:true});
     assert.deepEqual(errors, []);
     await context.close();
-    console.log(`Browser acceptance passed: ${name} ${viewport.width}x${viewport.height}; daily results, private notebooks, duration/budget and paused creation.`);
+    console.log(`Browser acceptance passed: ${name} ${viewport.width}x${viewport.height}; dark/light persistence, layout, daily results, private notebooks, duration/budget and paused creation.`);
   }
 } finally {
   if (browser) await browser.close();

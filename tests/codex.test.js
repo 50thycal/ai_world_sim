@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, chmodSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CodexClient, isolatedConfig, rpcFailure, providerFailure } from '../src/codex.js';
+import { CodexClient, isolatedConfig, rpcFailure, providerFailure, rpcDiagnostic } from '../src/codex.js';
 import { fileURLToPath } from 'node:url';
 
 test('villager harness disables shell, browser, apps and shared agent credentials',()=>{
@@ -101,4 +101,18 @@ test('provider codes accept only schema-known variants and numeric HTTP status',
  assert.deepEqual(providerFailure({httpConnectionFailed:{httpStatusCode:503,message:'SECRET'}}),{providerCode:'httpConnectionFailed',httpStatusCode:503});
  assert.deepEqual(providerFailure('SECRET'),{providerCode:'unknown'});
  assert.deepEqual(providerFailure({responseStreamDisconnected:{httpStatusCode:'SECRET'}}),{providerCode:'responseStreamDisconnected'});
+});
+
+
+test('RPC diagnostics preserve only an allowlisted method and bounded numeric category',()=>{
+ assert.deepEqual(rpcDiagnostic({code:-32602,message:'SECRET',data:{token:'SECRET'}},'thread/start'),{rpcMethod:'thread/start',rpcErrorClass:'invalid_params',rpcErrorCode:-32602});
+ assert.deepEqual(rpcDiagnostic({code:-32001,message:'SECRET'},'turn/start'),{rpcMethod:'turn/start',rpcErrorClass:'server_error',rpcErrorCode:-32001});
+ assert.deepEqual(rpcDiagnostic({code:'SECRET',message:'SECRET'},'SECRET-METHOD'),{rpcMethod:'unknown',rpcErrorClass:'unknown'});
+});
+test('thread-start RPC rejection retains safe diagnostics through the real adapter without exposing raw error data',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'codex-rpc-reject-')),binary=fileURLToPath(new URL('./fake-codex.js',import.meta.url));chmodSync(binary,0o755);const events=[];
+ const c=new CodexClient({dataDir:dir,binary,onDiagnostic:e=>events.push(e)});
+ try{await assert.rejects(c.decide({name:'Mira'},'RejectThreadStart',{runId:'test',requestId:'test-rpc',actorId:'v1',tick:432,worldVersion:'world-v6'}),/Codex rejected/);
+ const e=events.find(e=>e.event==='codex_rpc_failed');assert.equal(e.rpcMethod,'thread/start');assert.equal(e.rpcErrorCode,-32602);assert.equal(e.rpcErrorClass,'invalid_params');assert.equal(e.requestId,'test-rpc');assert.ok(!JSON.stringify(events).includes('SECRET'));assert.equal(c.decisionWorker,null);
+ }finally{await c.stop();rmSync(dir,{recursive:true,force:true});}
 });

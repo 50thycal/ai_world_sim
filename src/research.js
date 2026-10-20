@@ -1,5 +1,5 @@
 import { batchReport } from './batches.js';
-import { APP_VERSION, LATEST_VERSION, decodeFrame, metrics } from './world.js';
+import { APP_VERSION, LATEST_VERSION, MAX_SAVED_RUNS, decodeFrame, metrics } from './world.js';
 import { resources } from './diagnostics.js';
 
 const ROOT = '/api/research';
@@ -94,7 +94,7 @@ export class Research {
     if (path === ROOT) return { status: 200, body: {
       format: 'ai-world-research-api-v1', appVersion: APP_VERSION, latestWorldVersion: LATEST_VERSION, codeRevision: revision(),
       access: 'Public read-only simulation evidence, matching the spectator world. No owner cookie or provider credentials required.',
-      currentRunId: this.store.world.id, maxPageSize: LIMIT,
+      currentRunId: this.store.world.id, savedRunLimit: MAX_SAVED_RUNS, maxPageSize: LIMIT,
       links: { runs: `${ROOT}/runs`, runtime: `${ROOT}/runtime`, batches: `${ROOT}/batches`, currentReport: `${ROOT}/runs/${this.store.world.id}` },
     } };
     if (path === `${ROOT}/runtime`) return { status: 200, body: {
@@ -106,7 +106,7 @@ export class Research {
       lifecycle: this.db.prepare("SELECT id,data FROM diagnostics WHERE json_extract(data,'$.event') IN ('server_start','server_stop') ORDER BY id DESC LIMIT 20").all().reverse().map(r => ({ id: r.id, data: JSON.parse(r.data) })),
     } };
     if (path === `${ROOT}/runs`) return { status: 200, body: { format: 'ai-world-research-runs-v1', generatedAt: new Date().toISOString(),
-      currentRunId: this.store.world.id, runs: this.db.prepare('SELECT state,updated FROM worlds ORDER BY updated DESC,id').all().map(r => this.summary({ world: JSON.parse(r.state), updated: r.updated })) } };
+      currentRunId: this.store.world.id, savedRunLimit: MAX_SAVED_RUNS, runs: this.db.prepare('SELECT state,updated FROM worlds ORDER BY updated DESC,id').all().map(r => this.summary({ world: JSON.parse(r.state), updated: r.updated })) } };
     if (path === `${ROOT}/batches`) return { status: 200, body: { batches: this.db.prepare('SELECT state FROM batches ORDER BY updated DESC,rowid DESC').all().map(r => batchReport(this.store, JSON.parse(r.state))) } };
     const bm = path.match(/^\/api\/research\/batches\/([a-zA-Z0-9-]{1,80})$/);
     if (bm) { const row = this.db.prepare('SELECT state FROM batches WHERE id=?').get(bm[1]); return { status: row ? 200 : 404, body: row ? batchReport(this.store, JSON.parse(row.state)) : { error: 'Batch not found' } }; }

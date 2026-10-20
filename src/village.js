@@ -163,7 +163,7 @@ export function completeVillageAction(w, a, t, yieldMeals) {
     const partners = w.agents.filter(b => b.id !== a.id && Math.abs(b.x-a.x)+Math.abs(b.y-a.y) <= 2);
     a.satisfaction = Math.min(100, a.satisfaction + (partners.length ? 15 : 5)); a.energy = Math.min(100, a.energy + 3); v.stats.socialVisits++;
     if (t.message) { a.lastMessage = t.message; a.lastMessageTick = w.tick; a.stats.talked++; }
-    return { kind: 'socialize', text: `spent leisure time at the green${partners.length ? ' with ' + partners.map(b => b.name).join(', ') : ''}${t.message ? ': “' + t.message + '”' : '.'}`, extra: { participants: partners.map(b => b.id) } };
+    return { kind: 'socialize', text: `spent leisure time at the green${partners.length ? ' with ' + partners.map(b => b.name).join(', ') : ''}${t.message ? ': “' + t.message + '”' : '.'}`, extra: { participants: partners.map(b => b.id), spoken: Boolean(t.message) } };
   }
   if (t.action === 'host_meal') {
     if (!a.inventory.meal || v.gatherings.some(g => g.hostId === a.id)) return fail('needs one meal and no existing gathering.');

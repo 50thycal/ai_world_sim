@@ -22,7 +22,7 @@ export function rememberEncounter(w, witness, event) {
   p.lastSeenTick = w.tick;
   p.recentEvents = [...p.recentEvents, { tick: event.tick, kind: event.kind, actorId: event.actorId,
     targetId: event.targetId || null, text: event.text }].slice(-4);
-  if (event.kind === 'talk') {
+  if (event.kind === 'talk' || (event.kind === 'socialize' && event.spoken === true)) {
     if (event.actorId !== witness.id) {
       p.heardMessages++;
       p.firstWords ||= { tick: event.tick, text: event.text };

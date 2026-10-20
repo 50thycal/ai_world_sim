@@ -223,3 +223,41 @@ Physical-phone layout and sign-in remain unverified; desktop browser rendering i
 - Not yet verified: deployed v6 persistence, actual ChatGPT adoption of these activities, or a live
   five-run batch. Existing saved worlds are not migrated or started by this change. Five repeated
   v6 conditions measure within-condition variation and do not isolate the effects of each addition.
+
+## App v0.6.1 — dark mode and live-run defects — 2026-10-20
+
+- `npm run check` and all 113 tests pass. Real local desktop/phone Chromium checks pass for default
+  dark appearance, switching to light, persisted preference across reloads, owner forms, the complete
+  market/village/batch workflow and no page errors or horizontal page overflow. Unit checks also
+  cover blocked storage and applying the theme before the stylesheet paints. No dependency added.
+- Audited batch e4b2ecfd-8159-4246-a2b4-6408d0c06433: four completed ten-day ChatGPT villages plus
+  a bounded fifth-run snapshot. Full retained scientific rows were retrieved under fixed report
+  watermarks, applied rounds checked, and food/fuel/coin/health accounts reconciled. See
+  [the findings](VILLAGE_BATCH_REVIEW.md). No live run was paused, resumed, reset or migrated.
+- Reproduced a v6 validator defect from Reed's request e5d71d96-093e-447f-9bde-4acf48cfc377 at
+  tick 408 in run 410eb3d4-3953-4877-ba92-aea3eb3af6ac, verified against replay frame 25386:
+  continue + project target replaced an active two-tick wood delivery with an invalid task.
+  Continue now preserves existing work/travel regardless of the copied project target, while
+  ordinary non-project actions still cannot use project targets and price metadata remains checked.
+  Regression tests exercise all three projects, construction as well as delivery, empty continuation
+  and invalid price metadata. V4/v5 behavior and old saved evidence remain unchanged.
+- Fixed a second v6 inconsistency: spoken socialize messages counted as speech in global activity
+  but did not increment nearby residents' heard-message/first-word notebooks. New events explicitly
+  record whether speech occurred; hearing now updates once for spoken messages, never silent visits
+  or distant residents. No past notebooks or records are reconstructed or rewritten.
+- Observer project cards now show the completion day/time. A stove finished in the final 50 simulated
+  minutes of run four legitimately saved no fuel; completion count alone hides how late it arrived.
+- The saved-run admission cap is now 50 rather than 20, shared by single-run and batch paths.
+  Tests verify a five-run batch can start after twenty retained worlds without overwriting history,
+  and the new bound still rejects overflow. Research discovery/runs expose the cap. No worlds,
+  records or frames are deleted, and no extra model calls start automatically.
+- A follow-up found run five paused at tick 432 after an unclassified thread-start RPC rejection.
+  Account discovery had succeeded; five other proposals were safely persisted. No live retry or
+  reset was attempted. Past diagnostics omit the RPC code, so its underlying cause remains unknown.
+  Future RPC failures now preserve an allowlisted method and bounded standard numeric error category;
+  fake-transport and privacy tests verify safe correlation with no raw provider message/error data.
+  The retry policy is unchanged. This instrumentation does not fix or retrospectively explain that
+  historical provider rejection.
+- These are app fixes under world-v6, not a new economic treatment. A deployment before the current
+  paused member finishes mixes app revisions; preserve that fact when comparing results. New live
+  behavior after these fixes is not yet verified; market adoption and leisure need future experiments.

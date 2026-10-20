@@ -5,7 +5,16 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.6.0 / cooperative village v6
+## Current release: app v0.6.1 / cooperative village v6
+
+The observatory now defaults to dark mode, with a header toggle and a saved preference on each
+browser. Owner controls, tables, messages and the map support both themes. App v0.6.1 also fixes
+project-target continuation cancelling deliveries, and records spoken leisure messages consistently
+in nearby listeners' notebooks. Historical evidence stays unchanged. Project cards show when each
+improvement actually finished. The retained-run allowance rises from 20 to 50 so further five-run
+batches fit without deleting existing evidence. Future RPC rejections retain safe method/code
+categories for diagnosis; the fifth live run's old generic rejection remains unresolved. See [the first live batch review](docs/VILLAGE_BATCH_REVIEW.md).
+
 
 Owner controls now default to **five separate ten-day villages**, run in series on the existing
 single worker. Create a paused batch, then press **Play village / batch**. Each member starts fresh
@@ -42,7 +51,7 @@ full physical state. Exactly **48 coins including request escrow** circulate; no
 Unfinished services and unaccepted invitations retain their reserved supplies at the end of a run.
 
 Uncheck cooperative life to repeat v5; disable both economy options for v4. Existing worlds retain
-their original version and observations. Batches reserve enough of the existing 20 saved-run slots
+their original version and observations. Batches reserve enough of the 50 saved-run slots
 before starting and never remove evidence. One batch is a repeated-condition experiment: changes
 bundle prompts and physical rules, and results do not establish which individual mechanic caused an effect.
 
@@ -316,7 +325,7 @@ leave its final moments unrecorded. Missing diagnostics before this upgrade cann
 - Explicit **scripted demo** and **ChatGPT subscription** runs. Fixed mode/model per run; no automatic fallback.
 - Official pinned `@openai/codex` 0.163.0 App Server over private stdio, phone-compatible device-code login.
 - SQLite world/evidence persistence, recorded-state replay and JSON evidence export.
-- Configurable 1–30 day runs (10 by default), 144 inference attempts per day, at most 20 retained runs.
+- Configurable 1–30 day runs (10 by default), 144 inference attempts per day, at most 50 retained runs.
 - One-time owner link, HttpOnly owner cookie, same-origin mutation checks, read-only spectator API.
 - Restart always pauses. An inference error pauses time, records a failure and cannot turn into a demo decision.
 

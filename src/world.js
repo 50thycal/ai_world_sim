@@ -10,7 +10,7 @@ import { ECONOMY_VERSION, hasEconomy, addEconomy, MARKET_ACTIONS, economyObserva
   marketPlanProblem, expireOffers, completeMarketAction, economyMetrics, productionWork, gatherYield,
   useTool, cookYield, practice, skillFor, craftCost } from './economy.js';
 
-export const APP_VERSION = '0.6.0';
+export const APP_VERSION = '0.6.1';
 export const GROUNDED_INPUT = 'current-facts-v1';
 export const VERSION = 'world-v4';
 export const LATEST_VERSION = VILLAGE_VERSION;
@@ -24,6 +24,7 @@ export const groundedInput = w => isV4(w) && w.decisionInputVersion === GROUNDED
 export const TICKS_PER_DAY = 288;
 export const DEFAULT_DAYS = 10;
 export const MAX_DAYS = 30;
+export const MAX_SAVED_RUNS = 50;
 export function validateDays(days) {
   if (!Number.isInteger(days) || days < 1 || days > MAX_DAYS) throw new Error(`Choose a whole number of days from 1 to ${MAX_DAYS}`);
   return days;
@@ -289,7 +290,7 @@ export function assign(w, a, decision) {
   const required = { cook: 'hearth', share: 'pantry', rest: 'shelter', take: 'pantry' };
   a.lastReason = d.reason;
   if (isV3(w) && d.action !== 'continue') a.plans = [...a.plans, { tick: w.tick, action: d.action, target: d.target, item: d.item, reason: d.reason }].slice(-6);
-  const villageIssue = hasVillage(w) ? (Object.hasOwn(PROJECTS, d.target) && !VILLAGE_ACTIONS.includes(d.action) ? 'project targets are only for village project actions' : villagePlanProblem(w, a, d)) : null;
+  const villageIssue = hasVillage(w) ? (Object.hasOwn(PROJECTS, d.target) && d.action !== 'continue' && !VILLAGE_ACTIONS.includes(d.action) ? 'project targets are only for village project actions' : villagePlanProblem(w, a, d)) : null;
   const marketIssue = villageIssue || (hasEconomy(w) ? marketPlanProblem(w, a, d) : null);
   if (hasVillage(w) && !VILLAGE_ACTIONS.includes(d.action) && !MARKET_ACTIONS.includes(d.action) && (d.price !== 0 || d.offerId !== 0)) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: 'ordinary actions use price 0 and offerId 0', target: null, work: 1 }; return; }
   if (marketIssue) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: marketIssue, target: null, work: 1 }; return; }
@@ -492,7 +493,7 @@ export class WorldStore {
     } catch (e) { this.db.exec('ROLLBACK'); throw e; }
   }
   reset(mode, model, options) {
-    if (this.db.prepare('SELECT count(*) n FROM worlds').get().n >= 20) throw new Error('20 saved runs retained. Export and archive before starting more.');
+    if (this.db.prepare('SELECT count(*) n FROM worlds').get().n >= MAX_SAVED_RUNS) throw new Error(`${MAX_SAVED_RUNS} saved runs retained. Export and archive before starting more.`);
     this.world = newWorld(mode, model, options); this.save([], true);
   }
   records(limit = 100) {
