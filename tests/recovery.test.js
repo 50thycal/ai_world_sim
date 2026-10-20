@@ -148,3 +148,27 @@ test('owner Play activates recovery for a paused old v4 run while anonymous acce
   await post('/api/admin/pause',{},cookie);
  }finally{if(app)await app.close();rmSync(dir,{recursive:true,force:true});if(previous===undefined)delete process.env.OWNER_SETUP_TOKEN;else process.env.OWNER_SETUP_TOKEN=previous;}
 });
+
+
+test('identifiable thread startup failure retries with a reaped fresh worker and preserves its failure link',async()=>{
+ const f=fixture(),s=f.store,c=new CodexClient({dataDir:f.dir,binary:fileURLToPath(new URL('./fake-codex.js',import.meta.url))});
+ try{s.world.model='StartupOnce';const r=new Runner(s,c,undefined,{retryDelays:[0,0]});await r.step(true);
+ assert.equal(s.world.calls,7);assert.equal(s.world.retriesUsed,1);assert.equal(s.world.tick,12);assert.equal(c.decisionWorker,null);
+ const rows=s.export().records,failure=rows.find(r=>r.kind==='failure');assert.equal(failure.failureCode,'worker_startup_transient');assert.ok(rows.some(r=>r.kind==='request'&&r.retryOf===failure.requestId));
+ }finally{await c.stop();f.close();}
+});
+
+test('owner worker recovery restarts only the connection and resumes the five saved v6 proposals without repurchasing them',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'village-owner-repair-'));const prior=process.env.OWNER_SETUP_TOKEN;process.env.OWNER_SETUP_TOKEN='test-worker-repair';let app,starts=0,stops=0;const called=[];
+ try{const codex={ready:false,start:async()=>{starts++;},readAccount:async()=>{},stop:async()=>{stops++;},status:()=>({connected:true}),decide:async input=>{called.push(input.name);return{decision:{...decision,price:0,offerId:0}};}};
+ app=createApp({dataDir:dir,intervalMs:100000,codex});app.batches.create('chatgpt','test-model',{village:true,days:10},1);const w=app.store.world;w.tick=432;w.nextDecisionTick=432;w.calls=222;w.pauseReason='Codex rejected request';
+ w.decisionRound={tick:432,decisions:w.agents.slice(0,5).map(a=>({actorId:a.id,decision:{...decision,price:0,offerId:0}}))};
+ app.store.save([{kind:'request',requestId:'reed-failed',actorId:'v6',actor:'Reed',tick:432},{kind:'failure',requestId:'reed-failed',failureCode:'unclassified',tick:432,text:'Codex rejected request'}]);const id=w.id,before=structuredClone(w.agents);
+ await new Promise(r=>app.server.listen(0,'127.0.0.1',r));const base=`http://127.0.0.1:${app.server.address().port}`;
+ const post=(path,body={},cookie)=>fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json',...(cookie?{cookie}:{})},body:JSON.stringify(body)});
+ assert.equal((await post('/api/admin/recover')).status,401);
+ const claim=await post('/api/claim',{token:'test-worker-repair'}),cookie=claim.headers.get('set-cookie').split(';')[0];
+ const response=await post('/api/admin/recover',{},cookie);assert.equal(response.status,200);assert.equal(stops,1);assert.ok(starts>=1);assert.equal(w.id,id);assert.equal(w.tick,432);assert.equal(w.calls,222);assert.equal(w.running,true);assert.deepEqual(w.agents,before);assert.equal(w.decisionRound.decisions.length,5);
+ assert.equal((await post('/api/admin/recover',{},cookie)).status,400);await app.runner.step();assert.deepEqual(called,['Reed']);assert.equal(w.calls,223);assert.equal(w.retriesUsed,1);assert.equal(w.id,id);assert.equal(w.version,'world-v6');assert.ok(app.store.export().records.some(r=>r.kind==='failure'&&r.requestId==='reed-failed'));assert.ok(app.store.export().records.some(r=>r.kind==='request'&&r.retryOf==='reed-failed'));
+ }finally{if(app)await app.close();rmSync(dir,{recursive:true,force:true});if(prior===undefined)delete process.env.OWNER_SETUP_TOKEN;else process.env.OWNER_SETUP_TOKEN=prior;}
+});

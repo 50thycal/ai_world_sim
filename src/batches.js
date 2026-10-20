@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { newWorld, metrics, APP_VERSION } from './world.js';
+import { newWorld, metrics, APP_VERSION, MAX_SAVED_RUNS } from './world.js';
 
 export const DEFAULT_RUNS = 5;
 export function validateRunCount(n) {
@@ -37,7 +37,7 @@ export class Batches {
   create(mode, model, options, count = DEFAULT_RUNS) {
     validateRunCount(count);
     const used = this.store.db.prepare('SELECT count(*) n FROM worlds').get().n;
-    if (used + count > 20) throw new Error(`This batch needs ${count} saved-run slots; ${20-used} remain. Existing evidence is retained. Choose fewer runs or archive saved evidence before retrying.`);
+    if (used + count > MAX_SAVED_RUNS) throw new Error(`This batch needs ${count} saved-run slots; ${MAX_SAVED_RUNS-used} remain. Existing evidence is retained. Choose fewer runs or archive saved evidence before retrying.`);
     // Validate/build before cancelling any existing batch.
     const w = newWorld(mode, model, options);
     if (this.batch && !['completed','cancelled'].includes(this.batch.status)) {

@@ -38,6 +38,36 @@ export function rpcFailure(error, method) {
   return 'Codex rejected request; check account access and CLI compatibility';
 }
 
+// Record only known RPC names and standard numeric error categories. Provider messages/data
+// may contain private details; never copy them into public diagnostics or run evidence.
+export function rpcDiagnostic(error, method) {
+  const methods = ['initialize','account/read','account/login/start','account/login/cancel','account/logout','model/list','thread/start','turn/start'];
+  const known = new Map([[-32700,'parse_error'],[-32600,'invalid_request'],[-32601,'method_not_found'],[-32602,'invalid_params'],[-32603,'internal_error']]);
+  const code = error?.code;
+  const valid = Number.isInteger(code) && code >= -32768 && code <= -32000;
+  return { rpcMethod: methods.includes(method) ? method : 'unknown', rpcErrorClass: known.get(code) || (valid && code >= -32099 ? 'server_error' : 'unknown'), ...(valid ? { rpcErrorCode: code } : {}) };
+}
+
+// Classify only known conditions. Never retain upstream text, paths or account details.
+// A generic internal-error response is retryable only before a thread/turn exists.
+export function rpcCondition(error, method) {
+  const known = providerFailure(error?.data?.codexErrorInfo);
+  if (known.providerCode !== 'unknown') return known;
+  const message = String(error?.message || '');
+  const terminal = [
+    [/out of memory|memory allocation|cannot allocate memory/i, 'worker_memory_error'],
+    [/no space left on device|disk full/i, 'worker_storage_full'],
+    [/unauthorized|unauthenticated|not authenticated|authentication|token expired|sign in|login required/i, 'unauthorized'],
+    [/usage limit|quota|credits exhausted|budget exceeded/i, 'usageLimitExceeded'],
+    [/rate limit|too many requests/i, 'rateLimitExceeded'],
+  ];
+  for (const [pattern, providerCode] of terminal) if(pattern.test(message)) return {providerCode};
+  if (method === 'thread/start' && error?.code === -32603 &&
+      (/resource temporarily unavailable|database is locked|connection reset by peer|connection refused|broken pipe/i.test(message) ||
+       /^\s*internal (?:server )?error[.!]?\s*$/i.test(message))) return {providerCode:'worker_startup_transient'};
+  return known;
+}
+
 // Confirmed against the pinned CLI's generated CodexErrorInfo schema. Unknown variants stay unknown.
 export function providerFailure(info) {
   const names = ['contextWindowExceeded', 'sessionBudgetExceeded', 'usageLimitExceeded', 'rateLimitExceeded',
@@ -146,9 +176,9 @@ export class CodexClient extends EventEmitter {
     if (msg.id !== undefined && this.pending.has(msg.id)) {
       const p = this.pending.get(msg.id); this.pending.delete(msg.id); clearTimeout(p.timer);
       if (msg.error) {
-        const detail = providerFailure(msg.error.data?.codexErrorInfo);
-        this.onDiagnostic({ event: 'codex_rpc_failed', phase: this.phase, ...detail });
-        this.lastError = rpcFailure(msg.error, p.method);
+        const detail = rpcCondition(msg.error, p.method);
+        this.onDiagnostic({ event: 'codex_rpc_failed', phase: this.phase, ...detail, ...rpcDiagnostic(msg.error, p.method) });
+        this.lastError = p.method === 'account/login/start' ? rpcFailure(msg.error,p.method) : ({worker_startup_transient:'Codex thread startup failed temporarily; bounded recovery will retry.',worker_memory_error:'Codex reported a memory allocation failure; paused for owner review.',worker_storage_full:'Codex storage is full; paused for owner review.',unauthorized:'Codex authentication needs attention; reconnect ChatGPT before resuming.',usageLimitExceeded:'Codex usage limit reached; check subscription access before resuming.',rateLimitExceeded:'Codex rate limit reached; paused for owner review.'})[detail.providerCode] || rpcFailure(msg.error, p.method);
         const error = new Error(this.lastError); error.diagnosticCode = detail.providerCode === 'unknown' ? undefined : detail.providerCode;
         error.httpStatusCode = detail.httpStatusCode; p.reject(error);
       }

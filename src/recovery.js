@@ -3,7 +3,7 @@ export const MAX_AUTOMATIC_RETRIES = 2;
 export const RETRY_DELAYS = [2000, 5000];
 export const recoveryPolicy = () => ({ version: 1, retryLimit: RETRY_LIMIT, maxAutomaticRetries: MAX_AUTOMATIC_RETRIES });
 export const transientFailure = (code, httpStatus) => !(httpStatus >= 400 && httpStatus < 500 && httpStatus !== 408) &&
-  ['timeout', 'serverOverloaded', 'flexUnavailable', 'internalServerError', 'httpConnectionFailed',
+  ['timeout', 'worker_startup_transient', 'serverOverloaded', 'flexUnavailable', 'internalServerError', 'httpConnectionFailed',
     'responseStreamConnectionFailed', 'responseStreamDisconnected', 'responseTooManyFailedAttempts'].includes(code);
 
 export function retriesUsed(store) {

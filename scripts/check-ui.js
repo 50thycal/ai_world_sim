@@ -30,11 +30,25 @@ try {
     assert.equal(await page.locator('#day-rows tr').count(), 2);
     assert.match(await page.locator('#inspector').innerText(), /SOCIAL NOTEBOOK/);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
+    assert.equal(await page.locator('body').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(17, 26, 23)');
+    await page.screenshot({ path: `${screenshots}/dark-${name}-world.png`, fullPage: true });
+    await page.getByRole('button',{name:'Switch to light mode'}).click();
+    await page.reload();await page.getByText('Day 3 / 10 · 00:00',{exact:true}).waitFor();
+    assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
+    assert.equal(await page.locator('body').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(245, 242, 233)');
+    await page.screenshot({path:`${screenshots}/light-${name}-world.png`,fullPage:true});
+    await page.getByRole('button',{name:'Switch to dark mode'}).click();
+    await page.reload();await page.getByText('Day 3 / 10 · 00:00',{exact:true}).waitFor();
+    assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
+    assert.equal(await page.evaluate(()=>localStorage.getItem('village-theme')),'dark');
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     await page.screenshot({ path: `${screenshots}/v4-${name}-world.png`, fullPage: true });
     await page.getByRole('button', { name: 'Owner controls ↗' }).click();
     assert.equal(await page.getByLabel('Simulation days').inputValue(), '10');
     assert.equal(await page.getByLabel('Separate runs').inputValue(), '5');
     assert.equal(await page.getByLabel('Requests, projects, homes & gatherings (v6)').isChecked(),true);
+    assert.equal(await page.getByLabel('Businesses, hobbies & council (v7)').isChecked(),true);
     assert.equal(await page.getByLabel('Encourage introductions on arrival').isChecked(), true);
     await page.locator('#scenario').selectOption('sustainable');
     await page.getByLabel('Simulation days').fill('3');
@@ -45,7 +59,7 @@ try {
     await page.getByRole('button', { name: 'Create paused batch' }).click();
     await page.getByText('Batch ready. Press Play village / batch to begin.', { exact: true }).waitFor();
     assert.equal(app.store.world.scenario.id, 'sustainable');
-    assert.equal(app.store.world.version, 'world-v6');
+    assert.equal(app.store.world.version, 'world-v7');
     await page.getByRole('button', { name: 'Close owner controls' }).click();
     await page.getByRole('heading', { name: 'The village market' }).waitFor();
     await page.getByRole('heading', { name: 'Work, homes & the village green' }).waitFor();
@@ -83,6 +97,21 @@ try {
     await page.reload();await page.locator('#village-gatherings article').waitFor();
     assert.match(await page.locator('#village-exchanges').innerText(),/Fen completed request for Mira/);
     await page.screenshot({path:`${screenshots}/v6-${name}-village.png`,fullPage:true});
+    // v7 businesses, an authorized delivery, an invitation and a funded ballot.
+    mira.inventory.meal+=2;act(mira,{action:'open_shop',target:'square',item:'meal',price:1});
+    const shop=app.store.world.life.shops[0];act(mira,{action:'stock_shop',target:'square',item:'meal',offerId:shop.id});
+    act(fen,{action:'order',target:mira.id,item:'meal',price:1,offerId:shop.id});
+    const order=app.store.world.life.orders[0];act(mira,{action:'deliver',target:fen.id,item:'meal',price:1,offerId:order.id});
+    act(asha,{action:'invite',target:'music',item:'none'});act(bolt,{action:'propose',target:'clinic',item:'none'});act(mira,{action:'fund',target:'clinic',item:'none',price:2});
+    await page.reload();await page.getByRole('heading',{name:'A village with plans'}).waitFor();
+    assert.equal(await page.locator('#life-shops article').count(),1);assert.equal(await page.locator('#life-orders article').count(),1);
+    assert.equal(await page.locator('#life-council article').count(),2);assert.match(await page.locator('#life-summary').innerText(),/1 delivery/);
+    assert.match(await page.locator('#life-council').innerText(),/2 public coins/);assert.match(await page.locator('#inspector').innerText(),/PERSONAL PLANS/);
+    assert.match(await page.locator('#market-summary').innerText(),/48 coins total/);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await page.screenshot({path:`${screenshots}/v7-${name}-life.png`,fullPage:true});
+    await page.getByRole('button',{name:'Owner controls ↗'}).click();
+    await page.getByRole('button',{name:'Restart worker & resume saved round'}).waitFor();
+    await page.getByRole('button',{name:'Close owner controls'}).click();
     // A real five-run scripted queue populates comparison results and archival inspection.
     app.batches.create('demo',null,{village:true,days:1,socialStart:false});app.batches.play();
     while(app.batches.batch.status==='running'){await app.runner.step();app.batches.advance();}
@@ -97,7 +126,7 @@ try {
     await page.screenshot({path:`${screenshots}/v6-${name}-batch.png`,fullPage:true});
     assert.deepEqual(errors, []);
     await context.close();
-    console.log(`Browser acceptance passed: ${name} ${viewport.width}x${viewport.height}; daily results, private notebooks, duration/budget and paused creation.`);
+    console.log(`Browser acceptance passed: ${name} ${viewport.width}x${viewport.height}; dark/light persistence, layout, daily results, private notebooks, duration/budget and paused creation.`);
   }
 } finally {
   if (browser) await browser.close();

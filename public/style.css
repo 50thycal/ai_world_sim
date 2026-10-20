@@ -23,3 +23,32 @@ label.check{display:flex;align-items:center;gap:8px;font-size:11px;align-self:en
 .form-row input[type=number]{width:100%;padding:10px;border:1px solid var(--line);border-radius:4px;background:var(--paper);color:var(--ink)}.day-table-wrap{overflow-x:auto}.day-table{width:100%;border-collapse:collapse;text-align:left;font-size:11px}.day-table th,.day-table td{padding:12px;border-bottom:1px solid var(--line);white-space:nowrap}.day-table thead{color:var(--muted)}
 
 .market-summary{font-size:12px;color:var(--green);line-height:1.7}.market-roles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:20px 0}.market-roles>div{padding:12px;border:1px solid var(--line);border-radius:6px}.market-roles strong,.market-roles span{display:block}.market-roles span{font-size:10px;color:var(--muted);margin-top:5px}.market-offers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:22px 0}.offer-card{background:var(--soft);border:1px solid var(--line);border-radius:7px;padding:16px}.offer-card .eyebrow{font-size:8px;overflow-wrap:anywhere}.offer-card h3{font:24px var(--serif);margin:12px 0}.offer-card>strong{color:var(--green)}.offer-card p:last-child{font-size:10px;color:var(--muted)}.skill-row{display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--muted);border-bottom:1px solid var(--line);padding:5px 0}.event.trade .event-dot,.event.offer .event-dot{background:#ad8347}#market-section h3{font-family:var(--serif);font-weight:400}@media(max-width:690px){.market-roles{grid-template-columns:repeat(3,minmax(0,1fr))}.market-roles>div{padding:9px}.market-offers{grid-template-columns:repeat(2,minmax(0,1fr))}.offer-card{padding:12px}.market-summary{font-size:11px}}
+
+/* Default to a dark observatory even before JavaScript or storage is available. */
+:root:not([data-theme="light"]){color-scheme:dark;--paper:#111a17;--ink:#e1e9df;--muted:#a8b8ab;--line:#35463b;--green:#b0d59f;--soft:#1e2d24;--orange:#e8ac79}
+:root[data-theme="light"]{color-scheme:light}
+#theme-toggle{min-height:44px;min-width:44px;font-size:11px}
+:root:not([data-theme="light"]) button{color:var(--ink)}
+:root:not([data-theme="light"]) .primary,:root:not([data-theme="light"]) .filters button[aria-pressed=true]{background:#a5c993;color:#142015}
+:root:not([data-theme="light"]) .resident.selected{background:#293e2e}
+:root:not([data-theme="light"]) .stated{color:#c4d8b9;border-color:#839b74}
+:root:not([data-theme="light"]) .meter{background:#35463b}
+:root:not([data-theme="light"]) .meter span{background:#a0bf8d}
+:root:not([data-theme="light"]) .event{border-color:var(--line)}
+:root:not([data-theme="light"]) .event.steal{color:#f1ac98}
+:root:not([data-theme="light"]) .pill{color:#c3dcb3;border-color:#7c9272}
+:root:not([data-theme="light"]) .field-note,:root:not([data-theme="light"]) .temperament{border-color:#6b8261}
+:root:not([data-theme="light"]) .note-number{color:#afc49f}
+:root:not([data-theme="light"]) .note-line{background:#a2bb91}
+:root:not([data-theme="light"]) select,:root:not([data-theme="light"]) #setup-key{background:#1b2921;color:var(--ink)}
+:root:not([data-theme="light"]) #owner-message{background:#223a2a;border-color:#64845c;color:#d9ecd0}
+:root:not([data-theme="light"]) #owner-message.error{background:#402b24;border-color:#ac7b66;color:#ffc9ad}
+:root:not([data-theme="light"]) dialog::backdrop{background:#030907bb}
+:root:not([data-theme="light"]) .map-wrap{background:#273c2b;border-color:#526844}
+:root:not([data-theme="light"]) #village{filter:brightness(.76) saturate(.8)}
+:root:not([data-theme="light"]) .map-caption{background:#15231ee8;color:#e1e9df;padding:6px;border-radius:4px}
+:root:not([data-theme="light"]) .map-button{background:#263b2b;color:#e1e9df}
+:root:not([data-theme="light"]) #replay-banner{background:#17261eee;color:var(--ink);border:1px solid var(--line)}
+@media(max-width:690px){#theme-toggle{font-size:10px;padding:9px 7px}.header-right{flex-shrink:0}.brand{min-width:0}.brand small{letter-spacing:1px}}
+
+@media(max-width:600px){#life-section .market-offers{grid-template-columns:1fr}}

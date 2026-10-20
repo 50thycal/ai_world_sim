@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { newWorld, assign, advance, observation, metrics, decisionSchema, validateDecision, PLACES, WorldStore } from '../src/world.js';
+import { newWorld, assign, advance, observation, metrics, decisionSchema, validateDecision, PLACES, WorldStore, MAX_SAVED_RUNS } from '../src/world.js';
 import { cookingWood } from '../src/village.js';
 import { Runner } from '../src/runner.js';
 import { Batches, batchReport } from '../src/batches.js';
@@ -110,7 +110,7 @@ test('batch admission is bounded without deleting evidence; completed current ru
  const b=new Batches(s,new Runner(s,{}));b.create('demo',null,{village:true,days:1});const first=s.world.id;
  s.world.tick=s.world.maxTicks;s.save();b.play();assert.equal(b.batch.runIds.length,2);assert.notEqual(s.world.id,first);b.advance();assert.equal(b.batch.runIds.length,2);
  b.pause();assert.throws(()=>b.create('demo',null,{village:true},11),/1–10/);const before=s.world.id;
- for(let i=0;i<14;i++)s.reset('demo',null,{});
+ for(let i=0;i<MAX_SAVED_RUNS-6;i++)s.reset('demo',null,{});
  assert.throws(()=>b.create('demo',null,{village:true},5),/slots/);assert.ok(s.db.prepare('SELECT id FROM worlds WHERE id=?').get(before));
 }));
 test('real adapter fake transport sends and saves v6 schema and exact current facts',()=>withStore(async(s,dir)=>{
@@ -161,3 +161,43 @@ test('mixed valid and impossible v6 choices never crash the engine, mint coins o
   for(const a of w.agents){assert.ok(a.coins>=0&&Number.isInteger(a.coins));assert.ok(Object.values(a.inventory).every(n=>Number.isInteger(n)&&n>=0));assert.ok(a.satisfaction>=0&&a.satisfaction<=100);}
  }
 });
+
+test('continue with a project target preserves the in-progress delivery and work instead of cancelling it',()=>{
+ // Live run 410eb3d4, Reed tick 408: contribution was underway with two work ticks left.
+ // Targeting orchard_upgrade on continue is schema-valid and must not replace that task.
+ for(const projectId of ['stove','orchard_upgrade','workshop'])for(const action of ['contribute','build']){
+  const w=fixture(),a=w.agents[5],p=w.village.projects[projectId];a.x=0;a.y=0;a.inventory.wood=4;
+  if(action==='build')p.wood=p.woodNeeded;
+  assign(w,a,d(action,projectId,action==='contribute'?'wood':'none'));advance(w);
+  const before=structuredClone(a.task),position={x:a.x,y:a.y};assert.ok(before);
+  assign(w,a,d('continue',projectId,action==='contribute'?'wood':'none'));
+  assert.deepEqual(a.task,before);assert.deepEqual({x:a.x,y:a.y},position);
+  const es=[];while(a.task)es.push(...advance(w));assert.equal(es.filter(e=>e.kind==='blocked').length,0);
+  if(action==='contribute'){assert.equal(p.wood,1);assert.equal(a.inventory.wood,3);}else assert.equal(p.work,2);
+ }
+ // Empty continuation is a wait; unrelated actions cannot use project targets.
+ const w=fixture(),a=w.agents[0];assert.equal(act(w,a,d('continue','stove','wood')).at(-1).kind,'wait');
+ assert.equal(act(w,a,d('talk','stove')).at(-1).kind,'blocked');
+ assert.equal(act(w,a,d('continue','stove','wood',2)).at(-1).kind,'blocked');
+});
+
+test('spoken leisure messages reach nearby listening histories exactly once; silent visits do not invent speech',()=>{
+ const w=fixture(),[speaker,listener,distant]=w.agents;distant.x=18;distant.y=0;
+ const spoken={...d('socialize','square'),message:'Would anyone like to meet here after work?'};
+ const es=act(w,speaker,spoken);assert.equal(es.at(-1).spoken,true);assert.equal(speaker.stats.talked,1);
+ assert.equal(listener.relationships[speaker.id].heardMessages,1);assert.match(listener.relationships[speaker.id].firstWords.text,/meet here after work/);
+ assert.equal(distant.relationships[speaker.id],undefined);
+ const first=structuredClone(listener.relationships[speaker.id].firstWords);
+ const silent=act(w,speaker,d('socialize','square'));assert.equal(silent.at(-1).spoken,false);
+ assert.equal(listener.relationships[speaker.id].heardMessages,1);assert.deepEqual(listener.relationships[speaker.id].firstWords,first);assert.equal(speaker.stats.talked,1);
+});
+
+test('a new five-run batch fits after twenty retained runs without overwriting any evidence; the new cap remains bounded',()=>withStore(async s=>{
+ const firstId=s.world.id;while(s.db.prepare('SELECT count(*) n FROM worlds').get().n<20)s.reset('demo',null,{});
+ const first=s.db.prepare('SELECT state FROM worlds WHERE id=?').get(firstId).state;
+ const b=new Batches(s,new Runner(s,{}));b.create('demo',null,{village:true,days:1},5);
+ assert.equal(s.db.prepare('SELECT count(*) n FROM worlds').get().n,21);assert.equal(b.batch.count,5);
+ assert.equal(s.db.prepare('SELECT state FROM worlds WHERE id=?').get(firstId).state,first);
+ while(s.db.prepare('SELECT count(*) n FROM worlds').get().n<MAX_SAVED_RUNS)s.reset('demo',null,{});
+ assert.throws(()=>s.reset('demo',null,{}),/saved runs retained/);assert.equal(s.db.prepare('SELECT count(*) n FROM worlds').get().n,MAX_SAVED_RUNS);
+}));

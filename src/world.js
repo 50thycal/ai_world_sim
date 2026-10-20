@@ -1,3 +1,4 @@
+import { LIFE_VERSION, hasLife, addLife, LIFE_ACTIONS, LIFE_TARGETS, lifeSite, lifeProblem, completeLifeAction, expireLife, lifeObservation, lifeMetrics, lifeFoodOwned } from './life.js';
 import { VILLAGE_VERSION, hasVillage, addVillage, VILLAGE_ITEMS, VILLAGE_ACTIONS, PROJECTS, villageSite, villagePlanProblem, completeVillageAction, expireVillage, villageMetrics, villageObservation, cookingWood, spendCookingFuel } from './village.js';
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
@@ -10,20 +11,21 @@ import { ECONOMY_VERSION, hasEconomy, addEconomy, MARKET_ACTIONS, economyObserva
   marketPlanProblem, expireOffers, completeMarketAction, economyMetrics, productionWork, gatherYield,
   useTool, cookYield, practice, skillFor, craftCost } from './economy.js';
 
-export const APP_VERSION = '0.6.0';
+export const APP_VERSION = '0.7.0';
 export const GROUNDED_INPUT = 'current-facts-v1';
 export const VERSION = 'world-v4';
-export const LATEST_VERSION = VILLAGE_VERSION;
+export const LATEST_VERSION = LIFE_VERSION;
 const V3 = 'world-v3';
 const V2 = 'world-v2';
 // v2 and later share hourly decisions; v3 adds scenarios, social actions and behavior records.
-export const hourly = w => [V2, V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION].includes(w.version);
-export const isV3 = w => [V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION].includes(w.version);
-export const isV4 = w => [VERSION, ECONOMY_VERSION, VILLAGE_VERSION].includes(w.version);
+export const hourly = w => [V2, V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION].includes(w.version);
+export const isV3 = w => [V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION].includes(w.version);
+export const isV4 = w => [VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION].includes(w.version);
 export const groundedInput = w => isV4(w) && w.decisionInputVersion === GROUNDED_INPUT;
 export const TICKS_PER_DAY = 288;
 export const DEFAULT_DAYS = 10;
 export const MAX_DAYS = 30;
+export const MAX_SAVED_RUNS = 50;
 export function validateDays(days) {
   if (!Number.isInteger(days) || days < 1 || days > MAX_DAYS) throw new Error(`Choose a whole number of days from 1 to ${MAX_DAYS}`);
   return days;
@@ -67,7 +69,11 @@ export const DECISION_SCHEMA_V5 = { ...DECISION_SCHEMA_V3, properties: { ...DECI
 export const DECISION_SCHEMA_V6 = { ...DECISION_SCHEMA_V5, properties: { ...DECISION_SCHEMA_V5.properties,
   action: { type: 'string', enum: [...ACTIONS_V3, ...MARKET_ACTIONS, ...VILLAGE_ACTIONS] },
   target: { type: 'string', enum: [...TARGETS_V3, ...Object.keys(PROJECTS)] }, item: { type: 'string', enum: [...ITEMS, 'tool', ...VILLAGE_ITEMS] } } };
-export const decisionSchema = version => version === VILLAGE_VERSION ? DECISION_SCHEMA_V6 : version === ECONOMY_VERSION ? DECISION_SCHEMA_V5
+export const DECISION_SCHEMA_V7 = { ...DECISION_SCHEMA_V6, properties: { ...DECISION_SCHEMA_V6.properties,
+  action: { type: 'string', enum: [...DECISION_SCHEMA_V6.properties.action.enum, ...LIFE_ACTIONS] },
+  target: { type: 'string', enum: [...DECISION_SCHEMA_V6.properties.target.enum, ...LIFE_TARGETS] },
+  item: { type: 'string', enum: [...DECISION_SCHEMA_V6.properties.item.enum, 'leisure_kit', 'care'] } } };
+export const decisionSchema = version => version === LIFE_VERSION ? DECISION_SCHEMA_V7 : version === VILLAGE_VERSION ? DECISION_SCHEMA_V6 : version === ECONOMY_VERSION ? DECISION_SCHEMA_V5
   : [V3, VERSION].includes(version) ? DECISION_SCHEMA_V3 : DECISION_SCHEMA;
 
 // Experimental conditions. Each run copies its scenario into the world so replays never depend on these constants.
@@ -98,7 +104,9 @@ const bump = (a, key, n = 1) => { if (a.stats) a.stats[key] += n; };
 const itemName = item => item === 'raw' ? 'ingredient' : item;
 export const looks = a => a.hunger >= 80 ? 'starving' : a.hunger >= 55 ? 'hungry' : a.health < 60 ? 'unwell' : a.energy < 25 ? 'exhausted' : 'well';
 
-export function newWorld(mode = 'demo', model = null, { scenario, personas = false, days = DEFAULT_DAYS, socialStart = true, economy = false, village = false } = {}) {
+export function newWorld(mode = 'demo', model = null, { scenario, personas = false, days = DEFAULT_DAYS, socialStart = true, economy = false, village = false, life = false } = {}) {
+  if (typeof life !== 'boolean') throw new Error('Choose whether to enable village livelihoods and personal life');
+  if (life) village = true;
   if (typeof village !== 'boolean') throw new Error('Choose whether to enable cooperative village life');
   if (village) economy = true;
   if (typeof economy !== 'boolean') throw new Error('Choose whether to enable the village economy');
@@ -109,7 +117,7 @@ export function newWorld(mode = 'demo', model = null, { scenario, personas = fal
   const s = SCENARIOS[scenario];
   validateDays(days);
   const w = {
-    version: village ? VILLAGE_VERSION : economy ? ECONOMY_VERSION : VERSION, id: randomUUID(), created: new Date().toISOString(),
+    version: life ? LIFE_VERSION : village ? VILLAGE_VERSION : economy ? ECONOMY_VERSION : VERSION, id: randomUUID(), created: new Date().toISOString(),
     mode, model, running: false, pauseReason: 'Ready for an owner to start', tick: 0,
     nextDecisionTick: 0, decisionRound: null, skippedTicks: 0,
     days, socialStart: Boolean(socialStart), decisionInputVersion: GROUNDED_INPUT,
@@ -132,14 +140,15 @@ export function newWorld(mode = 'demo', model = null, { scenario, personas = fal
   };
   if (economy) addEconomy(w);
   if (village) addVillage(w);
+  if (life) addLife(w);
   return w;
 }
 
 export function validateDecision(d, version) {
-  const v6 = version === VILLAGE_VERSION, v5 = [ECONOMY_VERSION, VILLAGE_VERSION].includes(version), v3 = [V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION].includes(version);
-  if (!d || typeof d !== 'object' || Object.keys(d).sort().join(',') !== decisionSchema(version).required.toSorted().join(',') ||
-      !decisionSchema(version).properties.action.enum.includes(d.action) || !(v6 ? [...TARGETS_V3, ...Object.keys(PROJECTS)] : v3 ? TARGETS_V3 : TARGETS).includes(d.target) ||
-      (v3 && !(v6 ? [...ITEMS, 'tool', ...VILLAGE_ITEMS] : v5 ? [...ITEMS, 'tool'] : ITEMS).includes(d.item)) ||
+  const schema = decisionSchema(version), v5 = [ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION].includes(version), v3 = [V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION].includes(version);
+  if (!d || typeof d !== 'object' || Object.keys(d).sort().join(',') !== schema.required.toSorted().join(',') ||
+      !schema.properties.action.enum.includes(d.action) || !schema.properties.target.enum.includes(d.target) ||
+      (v3 && !schema.properties.item.enum.includes(d.item)) ||
       (v5 && (!Number.isInteger(d.price) || d.price < 0 || d.price > 12 || !Number.isInteger(d.offerId) || d.offerId < 0 || d.offerId > 10000)) ||
       typeof d.message !== 'string' || typeof d.reason !== 'string' ||
       d.message.length > 240 || d.reason.length > 500) throw new Error('Invalid villager decision');
@@ -195,6 +204,10 @@ export function observation(w, a) {
     o.rules = o.rules.replace('cook at hearth consumes 1 raw + 1 wood for 3 meals if your profession is cook, otherwise 2 meals.', 'cook at hearth consumes the current village.recipes.cooking inputs; output is 3 meals for a cook, otherwise 2.');
     o.rules += ' Village v6 recipes and village.rules take precedence for new projects, fuel savings, home goods and service exchanges.';
   }
+  if (hasLife(w)) {
+    o.life = lifeObservation(w,a);
+    o.rules += ' Village v7 life.rules define standing shops, voluntary daily deliveries, personal activities and funded public services. These are optional choices alongside staying fed. Health may recover only through the listed care/clinic actions.';
+  }
   if (!groundedInput(w)) return o;
   // Old intentions/explanations are not facts about the current world. Keep them in
   // saved plans/replays, but do not feed their stale assertions back to the model.
@@ -215,6 +228,7 @@ export function observation(w, a) {
       ...(hasEconomy(w) ? { profession: a.profession, coins: a.coins, toolUsesRemaining: a.toolUses,
         capabilities: clone(o.economy.capabilities), localResources: clone(o.localResources) } : {}),
       ...(hasVillage(w) ? { tools: clone(o.village.tools), cookingRecipe: clone(o.village.recipes.cooking), home: clone(a.home), satisfaction: a.satisfaction } : {}),
+      ...(hasLife(w) ? { personal: clone(a.personal), lifeAvailableNow: clone(o.life.availableNow) } : {}),
       hungerScale: '0 = full; 100 = starving. Higher hunger means a greater need to eat.',
       eating: { minimumHunger: MIN_EAT_HUNGER, hungerRequirementMet: a.hunger >= MIN_EAT_HUNGER,
         reachableFoodSources: sources, canEatNow: a.hunger >= MIN_EAT_HUNGER && sources.length > 0,
@@ -233,6 +247,21 @@ export function demoDecision(w, a) {
   if (isV4(w) && w.socialStart && w.tick === 0) {
     const other = w.agents[(Number(a.id.slice(1))) % w.agents.length];
     return plan('talk', other.id, 'Scripted arrival introduction.', `I am ${a.name}. ${other.name}, what should we know about each other before we make plans?`);
+  }
+  if (hasLife(w) && !a.task && a.hunger < 50 && a.energy >= 25) {
+    // Scripted showcase choices only; never used as a live inference fallback.
+    const lp = (action,target,item='none',price=0,offerId=0) => ({...plan(action,target,'Scripted v7 livelihood/leisure choice.','',item),price,offerId});
+    const l=w.life, own=l.shops.find(s=>s.ownerId===a.id);
+    const delivery=l.orders.find(o=>o.sellerId===a.id && o.nextDeliveryAt<=w.tick && l.shops.find(s=>s.id===o.shopId)?.stock>0);
+    if(delivery)return lp('deliver',delivery.buyerId,delivery.item,delivery.price,delivery.id);
+    if(Math.floor(w.tick/12)%24===a.personal.preferredHour && (a.personal.lastLeisureAt===null || w.tick-a.personal.lastLeisureAt>=48))return lp('hobby',a.personal.interest);
+    const item=a.profession==='grower'?'raw':a.profession==='woodcutter'?'wood':a.profession==='cook'?'meal':'leisure_kit';
+    if(!own && a.inventory[item]>1)return lp('open_shop','square',item,1);
+    if(own && own.stock<2 && a.inventory[own.item]>1)return lp('stock_shop','square',own.item,0,own.id);
+    const desired=!a.inventory.meal?'meal':a.inventory.raw && !a.inventory.wood?'wood':!a.inventory.raw?'raw':null;
+    const shop=l.shops.find(s=>s.ownerId!==a.id && s.item===desired && s.stock && s.price*3<=a.coins);
+    if(shop && !l.orders.some(o=>o.buyerId===a.id))return lp('order',shop.ownerId,shop.item,shop.price,shop.id);
+    if(a.profession==='craftsperson' && a.inventory.wood>=2 && a.inventory.leisure_kit<2)return lp('craft_kit','square','leisure_kit');
   }
   if (hasVillage(w)) {
     if (a.hunger >= 45 && a.inventory.meal) return plan('eat', 'none', 'Scripted meal routine.');
@@ -289,9 +318,10 @@ export function assign(w, a, decision) {
   const required = { cook: 'hearth', share: 'pantry', rest: 'shelter', take: 'pantry' };
   a.lastReason = d.reason;
   if (isV3(w) && d.action !== 'continue') a.plans = [...a.plans, { tick: w.tick, action: d.action, target: d.target, item: d.item, reason: d.reason }].slice(-6);
-  const villageIssue = hasVillage(w) ? (Object.hasOwn(PROJECTS, d.target) && !VILLAGE_ACTIONS.includes(d.action) ? 'project targets are only for village project actions' : villagePlanProblem(w, a, d)) : null;
+  const lifeIssue = hasLife(w) ? (LIFE_TARGETS.includes(d.target) && d.action !== 'continue' && !LIFE_ACTIONS.includes(d.action) ? 'activity and civic targets require life actions' : lifeProblem(w,a,d)) : null;
+  const villageIssue = lifeIssue || (hasVillage(w) ? (Object.hasOwn(PROJECTS, d.target) && d.action !== 'continue' && !VILLAGE_ACTIONS.includes(d.action) ? 'project targets are only for village project actions' : villagePlanProblem(w, a, d)) : null);
   const marketIssue = villageIssue || (hasEconomy(w) ? marketPlanProblem(w, a, d) : null);
-  if (hasVillage(w) && !VILLAGE_ACTIONS.includes(d.action) && !MARKET_ACTIONS.includes(d.action) && (d.price !== 0 || d.offerId !== 0)) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: 'ordinary actions use price 0 and offerId 0', target: null, work: 1 }; return; }
+  if (hasVillage(w) && !VILLAGE_ACTIONS.includes(d.action) && !MARKET_ACTIONS.includes(d.action) && !(hasLife(w) && LIFE_ACTIONS.includes(d.action)) && (d.price !== 0 || d.offerId !== 0)) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: 'ordinary actions use price 0 and offerId 0', target: null, work: 1 }; return; }
   if (marketIssue) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: marketIssue, target: null, work: 1 }; return; }
   if (hourly(w) && d.action === 'continue') {
     if (!a.task) a.task = { ...d, action: 'wait', target: null, work: 1 };
@@ -300,13 +330,13 @@ export function assign(w, a, decision) {
   const problem = isV3(w) ? planProblem(a, d) : null;
   const issue = problem;
   if (issue) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: issue, target: null, work: 1 }; return; }
-  const target = hasVillage(w) && VILLAGE_ACTIONS.includes(d.action) ? villageSite(w, d) : hasEconomy(w) && MARKET_ACTIONS.includes(d.action) ? 'square' : required[d.action] || (d.target === 'none' ? null : d.target);
+  const target = hasLife(w) && LIFE_ACTIONS.includes(d.action) ? lifeSite(w,d) : hasVillage(w) && VILLAGE_ACTIONS.includes(d.action) ? villageSite(w, d) : hasEconomy(w) && MARKET_ACTIONS.includes(d.action) ? 'square' : required[d.action] || (d.target === 'none' ? null : d.target);
   if (hourly(w) && a.task?.action === d.action && a.task.target === target && (a.task.item ?? 'none') === (d.item ?? 'none') &&
-      (!hasEconomy(w) || (a.task.offerId === d.offerId && a.task.price === d.price && (!VILLAGE_ACTIONS.includes(d.action) || a.task.customerId === d.target) && (d.action !== 'buy' || a.task.sellerId === d.target)))) {
+      (!hasEconomy(w) || (a.task.offerId === d.offerId && a.task.price === d.price && (![...VILLAGE_ACTIONS,...LIFE_ACTIONS].includes(d.action) || a.task.customerId === d.target) && (d.action !== 'buy' || a.task.sellerId === d.target)))) {
     a.task.reason = d.reason; a.task.message = d.message; return;
   }
-  a.task = { ...d, ...(hasVillage(w) && VILLAGE_ACTIONS.includes(d.action) ? { customerId: d.target, projectId: d.target } : {}), ...(d.action === 'buy' ? { sellerId: d.target } : {}), target,
-    work: d.action === 'rest' ? 8 : ['give', 'steal', 'take', 'offer', 'buy', 'cancel_offer'].includes(d.action) ? 1 : productionWork(w, a, d.action, target) };
+  a.task = { ...d, ...((hasVillage(w) && VILLAGE_ACTIONS.includes(d.action) || hasLife(w) && LIFE_ACTIONS.includes(d.action)) ? { customerId: d.target, projectId: d.target } : {}), ...(d.action === 'buy' ? { sellerId: d.target } : {}), target,
+    work: d.action === 'rest' ? 8 : ['hobby','accept_invite','recover'].includes(d.action) ? 6 : ['give', 'steal', 'take', 'offer', 'buy', 'cancel_offer'].includes(d.action) ? 1 : productionWork(w, a, d.action, target) };
 }
 
 function regrow(w) {
@@ -340,6 +370,7 @@ export function advance(w) {
   };
   expireOffers(w, event);
   expireVillage(w, event);
+  expireLife(w,event);
   if (isV3(w)) regrow(w);
   // Rotate the resolution order rather than always favoring the first villager.
   const agents = [...w.agents.slice(w.tick % 6), ...w.agents.slice(0, w.tick % 6)];
@@ -387,6 +418,10 @@ export function advance(w) {
         const result = completeVillageAction(w, a, t, cookYield(w, a));
         text = result.text; failed = Boolean(result.failed); kind = result.kind || kind; extra = result.extra || {}; break;
       }
+      case 'open_shop': case 'stock_shop': case 'close_shop': case 'order': case 'cancel_order': case 'deliver': case 'craft_kit': case 'hobby': case 'invite': case 'accept_invite': case 'decline_invite': case 'propose': case 'vote_yes': case 'vote_no': case 'fund': case 'civic_supply': case 'civic_work': case 'maintain': case 'recover': {
+        const result = completeLifeAction(w,a,t);
+        text=result.text; failed=Boolean(result.failed); kind=result.kind || kind; extra=result.extra || {}; break;
+      }
       case 'eat':
         if (hourly(w) && a.hunger < MIN_EAT_HUNGER) { text = 'was not hungry enough to eat (needs hunger 40); food was saved.'; failed = true; break; }
         if (bag.meal) { bag.meal--; a.hunger = Math.max(0, a.hunger - 40); text = 'ate a cooked meal.'; bump(a, 'ate'); }
@@ -428,14 +463,15 @@ export function advance(w) {
   w.tick++;
   expireOffers(w, event);
   expireVillage(w, event);
+  expireLife(w,event);
   if (isV4(w) && w.tick % TICKS_PER_DAY === 0) {
     const cumulative = { ...metrics(w), gathered: w.agents.reduce((n, a) => n + a.stats.gathered, 0),
       gatheredFood: w.agents.reduce((n, a) => n + a.stats.gatheredFood, 0), gatheredWood: w.agents.reduce((n, a) => n + a.stats.gatheredWood, 0), mealsCooked: w.mealsCooked };
-    const daily = Object.fromEntries(['gifts', 'thefts', 'theftAttempts', 'pantryShares', 'pantryTakes', 'messages', 'blocked', 'rawMeals', 'starvingHours', 'gathered', 'gatheredFood', 'gatheredWood', 'mealsCooked', ...(hasEconomy(w) ? ['trades', 'coinsTraded', 'toolsCrafted', 'toolsUsed', 'offersPosted'] : []), ...(hasVillage(w) ? Object.keys(w.village.stats) : [])]
+    const daily = Object.fromEntries(['gifts', 'thefts', 'theftAttempts', 'pantryShares', 'pantryTakes', 'messages', 'blocked', 'rawMeals', 'starvingHours', 'gathered', 'gatheredFood', 'gatheredWood', 'mealsCooked', ...(hasEconomy(w) ? ['trades', 'coinsTraded', 'toolsCrafted', 'toolsUsed', 'offersPosted'] : []), ...(hasVillage(w) ? Object.keys(w.village.stats) : []), ...(hasLife(w) ? Object.keys(w.life.stats) : [])]
       .map(k => [k, Math.round((cumulative[k] - (w.previousDayMetrics?.[k] || 0)) * 10) / 10]));
     events.push({ kind: 'day_summary', tick: w.tick, day: w.tick / TICKS_PER_DAY, text: `Day ${w.tick / TICKS_PER_DAY} complete.`, daily, cumulative,
       residents: w.agents.map(a => ({ id: a.id, name: a.name, hunger: a.hunger, health: a.health, inventory: clone(a.inventory),
-        ...(hasEconomy(w) ? { coins: a.coins, profession: a.profession, skills: clone(a.skills), toolUses: a.toolUses, economicStats: clone(a.economicStats) } : {}), ...(hasVillage(w) ? { home: clone(a.home), satisfaction: a.satisfaction } : {}) })) });
+        ...(hasEconomy(w) ? { coins: a.coins, profession: a.profession, skills: clone(a.skills), toolUses: a.toolUses, economicStats: clone(a.economicStats) } : {}), ...(hasVillage(w) ? { home: clone(a.home), satisfaction: a.satisfaction } : {}), ...(hasLife(w) ? {personal:clone(a.personal)} : {}) })) });
     w.previousDayMetrics = cumulative;
   }
   if (w.tick >= w.maxTicks) { w.running = false; w.pauseReason = isV4(w) ? `${w.days}-day simulation complete` : 'One-day pilot complete'; }
@@ -446,12 +482,12 @@ export function advance(w) {
 export function metrics(w) {
   if (!isV3(w)) return null;
   const sum = key => w.agents.reduce((n, a) => n + a.stats[key], 0);
-  const wealth = w.agents.map(a => a.inventory.meal + a.inventory.raw + (hasVillage(w) ? w.village.requests.filter(r => r.ownerId === a.id).reduce((n,r) => n+(r.escrow.raw || 0)+(r.escrow.meal || 0),0) + w.village.gatherings.filter(g => g.hostId === a.id).length : 0) + (hasEconomy(w) ? w.economy.offers.filter(o => o.sellerId === a.id && ['meal', 'raw'].includes(o.item)).length : 0)), mean = wealth.reduce((n, x) => n + x, 0) / wealth.length;
+  const wealth = w.agents.map(a => a.inventory.meal + a.inventory.raw + lifeFoodOwned(w,a) + (hasVillage(w) ? w.village.requests.filter(r => r.ownerId === a.id).reduce((n,r) => n+(r.escrow.raw || 0)+(r.escrow.meal || 0),0) + w.village.gatherings.filter(g => g.hostId === a.id).length : 0) + (hasEconomy(w) ? w.economy.offers.filter(o => o.sellerId === a.id && ['meal', 'raw'].includes(o.item)).length : 0)), mean = wealth.reduce((n, x) => n + x, 0) / wealth.length;
   const gini = mean ? wealth.reduce((n, x) => n + wealth.reduce((m, y) => m + Math.abs(x - y), 0), 0) / (2 * wealth.length ** 2 * mean) : 0;
   return { gifts: sum('gave'), thefts: sum('stole'), theftAttempts: sum('stealAttempts'), pantryShares: sum('shared'), pantryTakes: sum('took'),
     messages: sum('talked'), blocked: sum('blocked'), rawMeals: sum('ateRaw'), starvingHours: Math.round(sum('starvingTicks') / DECISION_INTERVAL * 10) / 10,
     foodGini: Math.round(gini * 100) / 100, orchard: w.resources.food, woods: w.resources.wood, pantry: w.pantry,
-    lowestHealth: Math.round(Math.min(...w.agents.map(a => a.health))), ...economyMetrics(w), ...villageMetrics(w) };
+    lowestHealth: Math.round(Math.min(...w.agents.map(a => a.health))), ...economyMetrics(w), ...villageMetrics(w), ...lifeMetrics(w) };
 }
 
 export class WorldStore {
@@ -492,7 +528,7 @@ export class WorldStore {
     } catch (e) { this.db.exec('ROLLBACK'); throw e; }
   }
   reset(mode, model, options) {
-    if (this.db.prepare('SELECT count(*) n FROM worlds').get().n >= 20) throw new Error('20 saved runs retained. Export and archive before starting more.');
+    if (this.db.prepare('SELECT count(*) n FROM worlds').get().n >= MAX_SAVED_RUNS) throw new Error(`${MAX_SAVED_RUNS} saved runs retained. Export and archive before starting more.`);
     this.world = newWorld(mode, model, options); this.save([], true);
   }
   records(limit = 100) {
