@@ -1,3 +1,4 @@
+import { createScheduler, setExecutionPace } from './execution.js';
 import { Batches, DEFAULT_RUNS, validateRunCount } from './batches.js';
 import http from 'node:http';
 import { randomBytes, createHmac, timingSafeEqual, createHash } from 'node:crypto';
@@ -30,7 +31,7 @@ function ownerStorage(dataDir) {
   save(); return { owner, save };
 }
 
-export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), codex, intervalMs = 1200 } = {}) {
+export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), codex, intervalMs } = {}) {
   mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   const store = new WorldStore(join(dataDir, 'village.sqlite'));
   const diagnostics = new Diagnostics(store.db);
@@ -51,14 +52,14 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
     return Number(expiry) > Date.now() && equal(signature, sign(expiry));
   };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
-  const snapshot = () => ({ appVersion: APP_VERSION, latestWorldVersion: LATEST_VERSION, world: store.world, metrics: metrics(store.world), places: PLACES, events: store.records(80).filter(e => !['request', 'decision'].includes(e.kind)),
+  const snapshot = () => ({ execution: scheduler?.snapshot(), appVersion: APP_VERSION, latestWorldVersion: LATEST_VERSION, world: store.world, metrics: metrics(store.world), places: PLACES, events: store.records(80).filter(e => !['request', 'decision'].includes(e.kind)),
     daySummaries: store.db.prepare("SELECT data FROM records WHERE run=? AND kind='day_summary' ORDER BY id").all(store.world.id).map(r => { const { day, daily, cumulative } = JSON.parse(r.data); return { day, daily, cumulative }; }),
     batch: batches.report(), busy: runner.busy, pendingName: runner.pendingName, retry: runner.retryState });
   async function body(req) {
     let data = ''; for await (const chunk of req) { data += chunk; if (data.length > 8192) throw new Error('Request too large'); }
     const parsed = JSON.parse(data || '{}'); if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Expected an object'); return parsed;
   }
-  let timer;
+  let scheduler;
   const server = http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -151,12 +152,15 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
           enableRecovery(store);
           if ((!batches.batch && store.world.tick >= store.world.maxTicks) || (store.world.tick < store.world.maxTicks && store.world.calls >= store.world.maxCalls && !(hourly(store.world) && store.world.nextDecisionTick >= store.world.maxTicks))) throw new Error('Run attempt budget complete. Start a new run.');
           batches.play(); return json(res, 200, snapshot());
+        case '/api/admin/pace': setExecutionPace(store,batches,b.pace); return json(res,200,snapshot());
         case '/api/admin/step': enableRecovery(store); await runner.step(true); return json(res, 200, snapshot());
         case '/api/admin/new':
           if (runner.busy || store.world.running) throw new Error('Pause and wait for the current decision first');
           if (!['demo', 'chatgpt'].includes(b.mode)) throw new Error('Choose demo or chatgpt');
-          if (!Object.hasOwn(SCENARIOS, b.scenario ?? (b.economy || b.village || b.life ? 'sustainable' : 'plenty'))) throw new Error('Choose a known scenario');
+          if (!Object.hasOwn(SCENARIOS, b.scenario ?? (b.economy || b.village || b.life || b.coordination ? 'sustainable' : 'plenty'))) throw new Error('Choose a known scenario');
           if (b.economy !== undefined && typeof b.economy !== 'boolean') throw new Error('Choose whether to enable the village economy');
+          if (b.coordination !== undefined && typeof b.coordination !== 'boolean') throw new Error('Choose whether to enable coordinated village life');
+          if (b.pace !== undefined && !['fast','watch'].includes(b.pace)) throw new Error('Choose fast or watch execution');
           if (b.life !== undefined && typeof b.life !== 'boolean') throw new Error('Choose whether to enable livelihoods and personal life');
           if (b.village !== undefined && typeof b.village !== 'boolean') throw new Error('Choose whether to enable cooperative village life');
           validateRunCount(b.runCount ?? DEFAULT_RUNS);
@@ -166,7 +170,7 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
             const models = await codex.models(); if (!models.some(m => m.id === b.model)) throw new Error('Choose an available model');
           }
           if (runner.busy || store.world.running) throw new Error('Pause and wait for the current decision first');
-          batches.create(b.mode, b.mode === 'chatgpt' ? b.model : null, { scenario: b.scenario ?? (b.economy || b.village || b.life ? 'sustainable' : 'plenty'), economy: b.economy ?? false, village: b.village ?? false, life: b.life ?? false, personas: b.personas === true, days: b.days ?? DEFAULT_DAYS, socialStart: b.socialStart ?? true }, b.runCount ?? DEFAULT_RUNS);
+          batches.create(b.mode, b.mode === 'chatgpt' ? b.model : null, { scenario: b.scenario ?? (b.economy || b.village || b.life || b.coordination ? 'sustainable' : 'plenty'), economy: b.economy ?? false, village: b.village ?? false, life: b.life ?? false, coordination: b.coordination ?? false, reviewHours: b.reviewHours ?? 1, pace: b.pace ?? 'fast', personas: b.personas === true, days: b.days ?? DEFAULT_DAYS, socialStart: b.socialStart ?? true }, b.runCount ?? DEFAULT_RUNS);
           return json(res, 200, snapshot());
         default: return json(res, 404, { error: 'Not found' });
       }
@@ -177,14 +181,10 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
     }
   });
   server.requestTimeout = 120000; server.headersTimeout = 15000; server.maxConnections = 100;
-  timer = setInterval(() => {
-    if (!runner.busy) {
-      batches.advance();
-      if (store.world.running) runner.step().then(() => batches.advance()).catch(() => batches.advance());
-    }
-  }, intervalMs); timer.unref();
+  scheduler=createScheduler({store,runner,batches,diagnostics,intervalMs});
+  runner.executionStats=()=>scheduler.snapshot();
   return { server, store, runner, codex, diagnostics, batches, close: async () => {
-    clearInterval(timer); stopHeartbeat(); batches.pause(store.world.running ? 'Server stopped' : store.world.pauseReason); await codex.stop();
+    scheduler.close(); stopHeartbeat(); batches.pause(store.world.running ? 'Server stopped' : store.world.pauseReason); await codex.stop();
     for (let i = 0; i < 25 && runner.busy; i++) await new Promise(r => setTimeout(r, 100));
     await new Promise(resolveClose => server.listening ? server.close(resolveClose) : resolveClose());
     diagnostics.emit({ event: 'server_stop', runId: store.world.id, tick: store.world.tick, calls: store.world.calls, busy: runner.busy });

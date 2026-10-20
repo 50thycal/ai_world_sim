@@ -47,8 +47,8 @@ export class Diagnostics {
     const safe = { timestamp: new Date().toISOString(), bootId: this.bootId, appVersion: APP_VERSION, diagnosticsVersion: 1 };
     const revision = process.env.RAILWAY_GIT_COMMIT_SHA;
     if (/^[a-f0-9]{40}$/.test(revision || '')) safe.codeRevision = revision;
-    const strings = ['event', 'runId', 'requestId', 'actorId', 'worldVersion', 'model', 'phase', 'role', 'signal', 'failureCode', 'previousShutdown', 'providerCode', 'rpcMethod', 'rpcErrorClass'];
-    const numbers = ['tick', 'requestNumber', 'pid', 'code', 'durationMs', 'cleanupMs', 'observationBytes', 'inputTokens', 'outputTokens', 'memoryMB', 'memoryLimitMB', 'nodeRssMB', 'peakMemoryMB', 'samples', 'oomKills', 'oomEvents', 'memoryMaxEvents', 'eventLoopDelayMaxMs', 'pendingProposals', 'calls', 'completedActions', 'httpStatusCode', 'retryDelayMs', 'retriesUsed', 'retryLimit', 'rpcErrorCode'];
+    const strings = ['event', 'runId', 'requestId', 'actorId', 'worldVersion', 'model', 'phase', 'role', 'signal', 'failureCode', 'previousShutdown', 'providerCode', 'rpcMethod', 'rpcErrorClass', 'pace', 'remoteTurnStatus'];
+    const numbers = ['tick', 'requestNumber', 'pid', 'code', 'durationMs', 'cleanupMs', 'observationBytes', 'inputTokens', 'outputTokens', 'memoryMB', 'memoryLimitMB', 'nodeRssMB', 'peakMemoryMB', 'samples', 'oomKills', 'oomEvents', 'memoryMaxEvents', 'eventLoopDelayMaxMs', 'pendingProposals', 'calls', 'completedActions', 'httpStatusCode', 'retryDelayMs', 'retriesUsed', 'retryLimit', 'rpcErrorCode', 'startupMs', 'threadStartMs', 'turnStartMs', 'inferenceMs', 'firstMessageMs', 'firstUsageMs', 'turnErrorCount', 'progressAgeMs'];
     for (const key of strings) if (typeof event[key] === 'string') safe[key] = event[key].slice(0, 160);
     for (const key of numbers) {
       if (event[key] === null) safe[key] = null;

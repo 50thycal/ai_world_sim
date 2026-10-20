@@ -127,3 +127,14 @@ test('startup classification is narrowly retryable and never exports raw provide
  assert.equal(rpcCondition({code:-32603,message:'UNKNOWN SECRET'},'thread/start').providerCode,'unknown');
  assert.equal(rpcCondition({code:-32603,message:'Internal error',data:{codexErrorInfo:'usageLimitExceeded'}},'thread/start').providerCode,'usageLimitExceeded');
 });
+
+
+test('stalled-turn inspection recovers only a completed matching turn and validates its actual model output',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'codex-probe-')),events=[],c=new CodexClient({dataDir:dir,binary:fileURLToPath(new URL('./fake-codex.js',import.meta.url)),timeout:250,probeIntervalMs:20,onDiagnostic:e=>events.push(e)});
+ try{
+  const r=await c.decide({name:'CompletedWithoutEvent'},'test-model',{worldVersion:'world-v8'});assert.equal(r.decision.reason,'Actual captured model output.');assert.equal(r.completionSource,'thread_read');assert.equal(r.usageReported,false);assert.equal(c.decisionWorker,null);assert.ok(events.some(e=>e.event==='completion_recovered'));assert.ok(events.some(e=>e.event==='stalled_turn_probe'&&e.remoteTurnStatus==='completed'));
+  const summary=events.find(e=>e.event==='decision_worker_summary');for(const key of ['startupMs','threadStartMs','turnStartMs','inferenceMs'])assert.ok(summary[key]>=0);
+  for(const name of ['StaleComplete','WrongPolledThread'])await assert.rejects(c.decide({name},'test-model',{worldVersion:'world-v8'}),/timed out/);
+  await assert.rejects(c.decide({name:'InvalidPolledOutput'},'test-model',{worldVersion:'world-v8'}));assert.ok(!JSON.stringify(events).includes('SECRET'));assert.equal(c.decisionWorker,null);
+ }finally{await c.stop();rmSync(dir,{recursive:true,force:true});}
+});

@@ -1,7 +1,8 @@
+import { COORDINATION_VERSION, hasCoordination } from './coordination.js';
 import { LIFE_VERSION } from './life.js';
 // Versioned cooperative economy. All transfers and benefits are physical engine outcomes.
 export const VILLAGE_VERSION = 'world-v6';
-export const hasVillage = w => [VILLAGE_VERSION,LIFE_VERSION].includes(w.version) && w.village?.version === 1;
+export const hasVillage = w => [VILLAGE_VERSION,LIFE_VERSION,COORDINATION_VERSION].includes(w.version) && w.village?.version === 1;
 export const VILLAGE_ITEMS = ['bed', 'furnishing'];
 export const VILLAGE_ACTIONS = ['request', 'request_cooking', 'fulfill', 'fulfill_cooking', 'cancel_request',
   'contribute', 'build', 'request_work', 'fulfill_work', 'craft_bed', 'craft_furnishing', 'furnish', 'socialize', 'host_meal', 'attend'];
@@ -125,7 +126,7 @@ export function completeVillageAction(w, a, t, yieldMeals) {
       // Service inputs are reserved by its requester. A free barter splits the output;
       // a paid service returns all meals. The stove returns an unused fuel unit to its owner.
       const wood = cookingWood(w); if (!wood) owner.inventory.wood++;
-      const delivered = r.price === 0 ? 1 : yieldMeals;
+      const delivered = r.price === 0 ? (hasCoordination(w) ? Math.floor(yieldMeals/2) : 1) : yieldMeals;
       owner.inventory.meal += delivered; a.inventory.meal += yieldMeals - delivered;
       spendCookingFuel(w); a.energy -= 4; a.stats.cooked += yieldMeals; w.mealsCooked += yieldMeals; a.skills.cook++;
       v.stats.cookingServices++; extra = { item: 'meal', mealsProduced: yieldMeals, mealsDelivered: delivered, mealsKept: yieldMeals - delivered, woodSpent: wood, rawSpent: 1 };
