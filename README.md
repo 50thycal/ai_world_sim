@@ -5,7 +5,45 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.6.1 / cooperative village v6
+## Current release: app v0.7.0 / village life v7
+
+Fresh owner batches default to v7, five separate ten-day villages. All v6 activities remain available.
+
+- **Resident businesses and standing orders:** one three-day shop per resident, with fixed unit price
+  and up to six escrowed goods. Customers explicitly reserve pay for up to three daily deliveries.
+  The merchant must stock and physically deliver every item; there is no automatic purchasing.
+  Cancellation, expiry and shop closure refund unspent deposits once. Shops can sell food, fuel,
+  tools, home goods, leisure kits or care services. Care uses a provider's meal and time to restore
+  a fed, injured customer's health, with a four-hour care cooldown.
+- **Personal activities:** each resident has an optional preferred hobby and leisure hour. Music,
+  games and walking improve satisfaction; crafted leisure kits are consumed for extra enjoyment.
+  Residents can invite someone for a scheduled activity, accept or decline, and must actually meet.
+  Hobbies compete for time and wood; they do not feed anyone or prevent starvation.
+- **Collective services:** propose a clinic or leisure garden; four of six yes votes within one day
+  are needed. Residents voluntarily pledge coins; failed ballots refund them. Approved donations
+  become a saved public wage budget. Four wood and eight work build a service; workers earn existing
+  donated coins. Daily maintenance needs wood, effort and pay. The clinic enables recovery; the
+  garden improves leisure. Without upkeep the service becomes inactive.
+
+Exactly 48 coins include wallets, requests, standing-order deposits and public budgets. Shops retain
+ownership of unsold stock. Other residents' bags, wallets, private interests and order books stay out
+of villager observations; public advertisements, ballots and budgets are visible. Spectators can
+inspect the full world. Daily evidence and the dashboard record deliveries, activities, recovery,
+ballots, public work and upkeep. These are engine/protocol checks, not evidence of spontaneous model
+adoption: the next live batches must establish whether residents use these opportunities.
+
+**Pause recovery:** identifiable temporary thread-start errors now use the existing two-retry,
+12-extra-attempt policy. Unknown rejections, auth/quota, invalid requests, storage and memory errors
+remain paused. **Restart worker & resume saved round** in owner controls replaces the Codex connection
+and continues only missing decisions, preserving the run, completed proposals, failed attempts and
+retry allowance. Restart itself never resumes a run. The historical fifth run's exact RPC cause was
+not retained; this release does not prove that old incident resolved. No live run was reset or resumed
+while developing it.
+
+Disable Businesses, hobbies & council to repeat v6; disable cooperative life for v5, or all economy
+options for v4. Saved worlds and queued older-version batches never acquire new rules.
+
+## Included fixes: app v0.6.1 / cooperative village v6
 
 The observatory now defaults to dark mode, with a header toggle and a saved preference on each
 browser. Owner controls, tables, messages and the map support both themes. App v0.6.1 also fixes
@@ -54,6 +92,8 @@ Uncheck cooperative life to repeat v5; disable both economy options for v4. Exis
 their original version and observations. Batches reserve enough of the 50 saved-run slots
 before starting and never remove evidence. One batch is a repeated-condition experiment: changes
 bundle prompts and physical rules, and results do not establish which individual mechanic caused an effect.
+
+See [v7 rules and next-run questions](docs/VILLAGE_LIFE.md) for exact commitments, recipes and review metrics.
 
 ## Earlier experiment: optional village economy v5
 
@@ -399,17 +439,17 @@ checked during implementation. Codex API surfaces evolve; upgrade deliberately a
 ## Scientific and operational boundaries
 
 - This tests AI behavior under explicit rules. It does not predict human behavior or establish causal claims.
-- Same initial state per condition; deterministic rotating resolution order. Conditions are chosen per run; there is no batch/replicate runner yet.
+- Same initial state per condition; deterministic rotating resolution order. Conditions are chosen per run; fresh batches repeat the chosen condition without cross-run learning.
 - Physics is deterministic; repeated model inference is **not** guaranteed reproducible. Replay reads recorded frames.
 - Action decisions are recorded with provenance; exact observations/protocol inputs are saved for requests
   made from app v0.3.1 onward. Older observations cannot be reliably recovered. Simulation v2 saves completed mid-round
   proposals for resume; legacy v1 discards unapplied proposals. Requests already sent still count.
   A `round` record binds applied decisions at its tick.
 - Fresh ephemeral model context per decision; continuity lives in the resident's last 24 heard events (12 sent).
-- No hidden resource regeneration (commons and renewable rules are stated in every observation), death, births or autonomous construction.
+- No hidden resource regeneration (commons and renewable rules are stated in every observation), death or births; public construction needs explicit resident actions.
 - Theft is always visible to residents within 4 tiles; there is no hidden crime or punishment system yet.
 - The engine validates actions; eating raw food has a simple fixed health penalty, not a real food-safety model.
-- Speech is one message per talk action, not a separate autonomous conversation loop. No action-grounded promise system yet.
+- Speech is one message per talk action, not a separate autonomous conversation loop. Only validated contracts authorize engine transfers; speech alone does not.
 - Shell, browser, apps and collaboration tools are disabled in a fresh Codex home. Unknown server tool requests fail closed.
 - Standard service/container isolation, not a hardened untrusted-code VM. Villagers return validated JSON only.
 - Public spectator inspection shows villagers' memories to humans; those memories are not fed to other villagers.

@@ -76,7 +76,7 @@ test('v3 runs show their experimental condition and behavior ledger, and new run
  assert.match(element('thefts').innerHTML,/1 <em>\/ 3 tries/);assert.match(element('gini').innerHTML,/0\.42/);assert.match(element('orchard').innerHTML,/^6 /);
  assert.match(element('inspector').innerHTML,/BEHAVIOR RECORD/);assert.match(element('inspector').innerHTML,/community-minded/);
  element('scenario').value='inequality';element('personas').checked=true;element('model').value='';await element('new-run').onclick();
- assert.deepEqual(sent,{mode:'demo',model:'',scenario:'inequality',economy:false,village:false,runCount:5,personas:true,days:10,socialStart:true});
+ assert.deepEqual(sent,{mode:'demo',model:'',scenario:'inequality',economy:false,village:false,life:false,runCount:5,personas:true,days:10,socialStart:true});
 });
 
 test('market view escapes resident text and owner controls explicitly select economy or baseline',async()=>{

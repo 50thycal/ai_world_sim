@@ -11,7 +11,9 @@ for await(const line of readline.createInterface({input:process.stdin})){
  case 'account/read':send({id:m.id,result:{account:{type:'chatgpt',planType:'test'}}});break;
  case 'model/list':send({id:m.id,result:{data:[{model:'test-model',displayName:'Test model',isDefault:true}]}});break;
  case 'account/login/start':send({id:m.id,result:{type:'chatgptDeviceCode',verificationUrl:'https://auth.openai.com/codex/device',userCode:'TEST-0000',loginId:'login-test'}});break;
- case 'thread/start':if(m.params.model==='RejectThreadStart'){send({id:m.id,error:{code:-32602,message:'SECRET-PROVIDER-MESSAGE',data:{secret:'SECRET-RAW-DATA'}}});break;}threadParams=m.params;send({id:m.id,result:{thread:{id:'thread-'+(++n)}}});break;
+ case 'thread/start':
+  if(m.params.model==='StartupOnce'&&!existsSync(join(process.env.CODEX_HOME,'startup-once.flag'))){writeFileSync(join(process.env.CODEX_HOME,'startup-once.flag'),'1');send({id:m.id,error:{code:-32603,message:'Internal error'}});break;}
+  if(m.params.model==='RejectThreadStart'){send({id:m.id,error:{code:-32602,message:'SECRET-PROVIDER-MESSAGE',data:{secret:'SECRET-RAW-DATA'}}});break;}threadParams=m.params;send({id:m.id,result:{thread:{id:'thread-'+(++n)}}});break;
  case 'turn/start':{
   const threadId=m.params.threadId,obs=JSON.parse(m.params.input[0].text);
   // Test-only wire capture in a disposable fake account, never the production client.

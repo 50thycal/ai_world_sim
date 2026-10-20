@@ -50,3 +50,5 @@ label.check{display:flex;align-items:center;gap:8px;font-size:11px;align-self:en
 :root:not([data-theme="light"]) .map-button{background:#263b2b;color:#e1e9df}
 :root:not([data-theme="light"]) #replay-banner{background:#17261eee;color:var(--ink);border:1px solid var(--line)}
 @media(max-width:690px){#theme-toggle{font-size:10px;padding:9px 7px}.header-right{flex-shrink:0}.brand{min-width:0}.brand small{letter-spacing:1px}}
+
+@media(max-width:600px){#life-section .market-offers{grid-template-columns:1fr}}

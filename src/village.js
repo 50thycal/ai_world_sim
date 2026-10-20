@@ -1,6 +1,7 @@
+import { LIFE_VERSION } from './life.js';
 // Versioned cooperative economy. All transfers and benefits are physical engine outcomes.
 export const VILLAGE_VERSION = 'world-v6';
-export const hasVillage = w => w.version === VILLAGE_VERSION && w.village?.version === 1;
+export const hasVillage = w => [VILLAGE_VERSION,LIFE_VERSION].includes(w.version) && w.village?.version === 1;
 export const VILLAGE_ITEMS = ['bed', 'furnishing'];
 export const VILLAGE_ACTIONS = ['request', 'request_cooking', 'fulfill', 'fulfill_cooking', 'cancel_request',
   'contribute', 'build', 'request_work', 'fulfill_work', 'craft_bed', 'craft_furnishing', 'furnish', 'socialize', 'host_meal', 'attend'];

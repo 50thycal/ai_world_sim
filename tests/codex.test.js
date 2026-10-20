@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, chmodSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CodexClient, isolatedConfig, rpcFailure, providerFailure, rpcDiagnostic } from '../src/codex.js';
+import { CodexClient, isolatedConfig, rpcFailure, providerFailure, rpcDiagnostic, rpcCondition } from '../src/codex.js';
 import { fileURLToPath } from 'node:url';
 
 test('villager harness disables shell, browser, apps and shared agent credentials',()=>{
@@ -115,4 +115,15 @@ test('thread-start RPC rejection retains safe diagnostics through the real adapt
  try{await assert.rejects(c.decide({name:'Mira'},'RejectThreadStart',{runId:'test',requestId:'test-rpc',actorId:'v1',tick:432,worldVersion:'world-v6'}),/Codex rejected/);
  const e=events.find(e=>e.event==='codex_rpc_failed');assert.equal(e.rpcMethod,'thread/start');assert.equal(e.rpcErrorCode,-32602);assert.equal(e.rpcErrorClass,'invalid_params');assert.equal(e.requestId,'test-rpc');assert.ok(!JSON.stringify(events).includes('SECRET'));assert.equal(c.decisionWorker,null);
  }finally{await c.stop();rmSync(dir,{recursive:true,force:true});}
+});
+
+
+test('startup classification is narrowly retryable and never exports raw provider details',()=>{
+ assert.equal(rpcCondition({code:-32603,message:'Internal error'},'thread/start').providerCode,'worker_startup_transient');
+ assert.equal(rpcCondition({code:-32603,message:'database is locked: SECRET-PATH'},'thread/start').providerCode,'worker_startup_transient');
+ for(const [message,code] of [['out of memory SECRET','worker_memory_error'],['no space left on device SECRET','worker_storage_full'],['Authentication failed SECRET','unauthorized'],['usage limit reached SECRET','usageLimitExceeded'],['rate limit exceeded SECRET','rateLimitExceeded']])assert.deepEqual(rpcCondition({code:-32603,message},'thread/start'),{providerCode:code});
+ assert.equal(rpcCondition({code:-32603,message:'Internal error'},'turn/start').providerCode,'unknown');
+ assert.equal(rpcCondition({code:-32602,message:'Internal error'},'thread/start').providerCode,'unknown');
+ assert.equal(rpcCondition({code:-32603,message:'UNKNOWN SECRET'},'thread/start').providerCode,'unknown');
+ assert.equal(rpcCondition({code:-32603,message:'Internal error',data:{codexErrorInfo:'usageLimitExceeded'}},'thread/start').providerCode,'usageLimitExceeded');
 });

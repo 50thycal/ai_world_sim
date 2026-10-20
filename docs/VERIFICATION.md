@@ -1,3 +1,32 @@
+# v0.7.0 village life and worker recovery — 2026-10-20
+
+- Syntax checks and 129 local tests pass, including v7 consent/escrow, daily-delivery limits,
+  exact-price acceptance, closure/expiry refunds, care consumption/caps, kits and leisure cooldowns,
+  invitations with present hosts, majority ballots/refunds, funded work/maintenance, paused persistence,
+  a full five-member scripted v7 batch, and mixed valid/impossible schema choices. Legacy v4–v6
+  tests remain included. Exactly 48 coins include public and standing-order balances.
+- Real adapter / fake transport verifies v7 schema and exact private current facts. A recognized
+  thread-start internal error recovers on a fresh reaped worker with its failure/retry link retained.
+  Unknown and terminal errors still pause. The pinned official CLI accepts isolated initialization;
+  no new authenticated subscription inference was started.
+- Owner HTTP recovery recreates the live incident's five-proposal v6 state at tick 432, 222 calls:
+  restarting the connection leaves IDs, version, inventories and proposals intact; resumption buys
+  only Reed's missing decision, becoming call 223 with one shared extra attempt. Anonymous recovery
+  is refused; running/busy/finished/budget-complete runs are guarded. Historical failures remain.
+- Desktop 1440×1000 and phone 390×844 browser checks pass against disposable engine fixtures:
+  v7 default creation, retained dark/light preference, businesses, order delivery/reserved balances,
+  invitation calendar, funded council, legacy market/contracts and five-run archival inspection.
+  No page errors or page overflow. New life cards use one column on phones. This is viewport
+  emulation, not a physical phone or live provider behavior test.
+- Railway runtime logs at the historical rejection agree with saved diagnostics: failure at
+  thread/start before inference, connected account read, no observed OOM kill; original RPC reason
+  was not retained. Platform metrics did not establish the cause. This change adds bounded startup
+  recovery and an owner repair path; it does not prove that incident resolved. No production state
+  was reset, resumed or migrated during implementation. Deployment and actual live recovery remain
+  unverified until the release is deployed and the owner resumes.
+- Includes the v0.6.1 dark mode, project continuation, spoken-message notebook and saved-run capacity
+  fixes from the preceding review. See [v7 rules and next-run questions](VILLAGE_LIFE.md).
+
 # v0.5.0 village economy — 2026-10-19
 
 - The previous live v4 Renewable village baseline completed ten days, 1,440 applied decisions and

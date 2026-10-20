@@ -48,3 +48,17 @@ start/resume/reset a run just to inspect it. Model dialogue and stated reasons a
   member, auto-resume after restart, or prune evidence to fit the 50-world limit.
 - Inspect `/api/research/batches` for replication results. Aggregates use completed members only;
   report incomplete/paused outcomes as well. Fake-provider/demo batches are not live model evidence.
+
+- Livelihoods and personal life are opt-in `world-v7` (`life:true`, implies v6/economy). Do not
+  migrate saved worlds or change v6 input schemas. Owner UI defaults new batches to v7.
+- Standing orders require explicit buyer authorization and three-unit-price coin escrow; merchants
+  physically deliver, once per 24h. Shop stock stays seller-owned. Keep all escrow/public budgets
+  in the 48-coin invariant. No auto-buys, free care, minted wages or inference fallbacks.
+- Private interests/order books belong only in their owner's/provider's observations. Public ballots,
+  donated budgets and advertised shops are intentional disclosures. Hobbies are optional preferences.
+- Public services require a four-resident majority, funded wages, material/work and daily upkeep.
+  Failed ballots refund pledges; approved funds remain in the saved public budget.
+- The historical v6 thread-start rejection has no retained RPC detail. Do not claim its exact cause
+  or successful live recovery from protocol tests. Known temporary startup signatures may retry;
+  unknown/auth/quota/invalid/memory/storage failures pause. Owner worker recovery retains all saved
+  proposals, failures, budgets and versions, and never creates a replacement run.

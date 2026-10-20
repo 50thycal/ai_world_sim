@@ -124,6 +124,25 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
         case '/api/admin/connect': return json(res, 200, await codex.connect());
         case '/api/admin/disconnect': batches.pause(); await codex.disconnect(); return json(res, 200, { ok: true });
         case '/api/admin/pause': batches.pause(); return json(res, 200, snapshot());
+        case '/api/admin/recover': {
+          if (runner.busy || store.world.running) throw new Error('Pause and wait for the current decision first');
+          if (store.world.tick >= store.world.maxTicks) throw new Error('This run is complete');
+          if (store.world.calls >= store.world.maxCalls) throw new Error('Run attempt budget complete. Start a new run.');
+          const generation = runner.generation;
+          runner.busy = true;
+          try {
+            store.save([{kind:'worker_recovery',tick:store.world.tick,source:store.world.mode,
+            pendingProposals:store.world.decisionRound?.decisions.length || 0,
+            text:'Owner requested a fresh Codex connection and resumption of the saved round; completed proposals and failed attempts retained.'}]);
+            if (store.world.mode === 'chatgpt') {
+              await codex.stop(); await codex.start(); await codex.readAccount();
+              if (!codex.status().connected) throw new Error('Connect ChatGPT before recovering');
+            }
+            if (runner.generation !== generation) throw new Error('Worker recovery cancelled by owner');
+            enableRecovery(store); batches.play();
+            return json(res,200,snapshot());
+          } finally { runner.busy = false; }
+        }
         case '/api/admin/run':
           if (store.world.mode === 'chatgpt') {
             await codex.start(); await codex.readAccount();
@@ -136,8 +155,9 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
         case '/api/admin/new':
           if (runner.busy || store.world.running) throw new Error('Pause and wait for the current decision first');
           if (!['demo', 'chatgpt'].includes(b.mode)) throw new Error('Choose demo or chatgpt');
-          if (!Object.hasOwn(SCENARIOS, b.scenario ?? (b.economy || b.village ? 'sustainable' : 'plenty'))) throw new Error('Choose a known scenario');
+          if (!Object.hasOwn(SCENARIOS, b.scenario ?? (b.economy || b.village || b.life ? 'sustainable' : 'plenty'))) throw new Error('Choose a known scenario');
           if (b.economy !== undefined && typeof b.economy !== 'boolean') throw new Error('Choose whether to enable the village economy');
+          if (b.life !== undefined && typeof b.life !== 'boolean') throw new Error('Choose whether to enable livelihoods and personal life');
           if (b.village !== undefined && typeof b.village !== 'boolean') throw new Error('Choose whether to enable cooperative village life');
           validateRunCount(b.runCount ?? DEFAULT_RUNS);
           validateDays(b.days ?? DEFAULT_DAYS);
@@ -146,7 +166,7 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
             const models = await codex.models(); if (!models.some(m => m.id === b.model)) throw new Error('Choose an available model');
           }
           if (runner.busy || store.world.running) throw new Error('Pause and wait for the current decision first');
-          batches.create(b.mode, b.mode === 'chatgpt' ? b.model : null, { scenario: b.scenario ?? (b.economy || b.village ? 'sustainable' : 'plenty'), economy: b.economy ?? false, village: b.village ?? false, personas: b.personas === true, days: b.days ?? DEFAULT_DAYS, socialStart: b.socialStart ?? true }, b.runCount ?? DEFAULT_RUNS);
+          batches.create(b.mode, b.mode === 'chatgpt' ? b.model : null, { scenario: b.scenario ?? (b.economy || b.village || b.life ? 'sustainable' : 'plenty'), economy: b.economy ?? false, village: b.village ?? false, life: b.life ?? false, personas: b.personas === true, days: b.days ?? DEFAULT_DAYS, socialStart: b.socialStart ?? true }, b.runCount ?? DEFAULT_RUNS);
           return json(res, 200, snapshot());
         default: return json(res, 404, { error: 'Not found' });
       }
