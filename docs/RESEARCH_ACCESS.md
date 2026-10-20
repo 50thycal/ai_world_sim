@@ -215,3 +215,21 @@ completed message received. Token-usage presence is a separate flag; none of the
 the message, raw protocol data or credentials. Earlier timeouts lack these flags and cannot be
 retroactively classified. Authentication/quota, malformed output, OOM/cleanup and unknown failures
 remain non-retryable; HTTP 4xx except 408 are excluded even under a connection-error wrapper.
+
+## Coordinated village and execution (app v0.8.0)
+
+`coordination:true` opts into world-v8 and coordinated-facts-v1; see COORDINATED_VILLAGE.md for the
+new cooking/shop/sponsor rules. Reports expose reviewHours and execution policy. Two-hour cadence
+is a different treatment with half the planned daily calls; physical ticks and starvation accounting
+remain five-minute/hour-based. Compare matching cadence/input/rules/model settings.
+
+New outcomes include shop_purchase and sponsored_vote; coordination counters include shopPurchases,
+sponsoredVotes and openingStock. Opening stock is still seller-owned for food/coin accounting. Public
+work intentions disclose only declared action/target, not remote private bags or preferences.
+
+State/runtime expose execution pacing and boot-local step/wait totals. Explicit owner pace changes
+record execution_policy and keep the saved world/proposals/call budget. Fast versus Watch changes
+wall-clock delays only; restart stays paused. Worker summaries include phase timings and stalled-turn
+probes. A recovered decision retains completionSource=thread_read and usageReported; absent usage
+cannot establish zero provider charges. Only completed matching turns with valid model JSON may be
+recovered. Diagnostic retention limits still apply; scientific failure and retry records remain.

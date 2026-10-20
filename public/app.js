@@ -3,10 +3,10 @@ let current, displayed, previous, receivedAt = 0, selected = 'v1', showLabels = 
 const canvas = $('village'), ctx = canvas.getContext('2d');
 const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const time = tick => `${String(Math.floor(tick * 5 / 60) % 24).padStart(2, '0')}:${String(tick * 5 % 60).padStart(2, '0')}`;
-const hourlyRun = w => ['world-v2', 'world-v3', 'world-v4', 'world-v5', 'world-v6', 'world-v7'].includes(w?.version);
-const VERBS = { open_shop:'Opening a business', stock_shop:'Stocking the shop', order:'Placing a standing order', deliver:'Delivering an order', hobby:'Enjoying a hobby', invite:'Planning an activity', accept_invite:'Joining a neighbor', propose:'Making a proposal', fund:'Funding a service', civic_work:'Building a public service', maintain:'Maintaining a service', recover:'Visiting the clinic', gather: 'Gathering', give: 'Giving', steal: 'Stealing', take: 'Taking', talk: 'Talking', craft: 'Making tools', offer: 'Listing goods', buy: 'Shopping', cancel_offer: 'Collecting goods', request: 'Posting a need', fulfill: 'Making a delivery', request_cooking: 'Hiring a cook', fulfill_cooking: 'Cooking for a neighbor', contribute: 'Supplying a project', build: 'Building', request_work: 'Hiring help', fulfill_work: 'Working for a neighbor', craft_bed: 'Making a bed', craft_furnishing: 'Making furnishings', furnish: 'Improving a home', socialize: 'At the green', host_meal: 'Hosting a meal', attend: 'Sharing a meal', invalid: 'Confused' };
+const hourlyRun = w => ['world-v2', 'world-v3', 'world-v4', 'world-v5', 'world-v6', 'world-v7', 'world-v8'].includes(w?.version);
+const VERBS = { shop_buy:'Collecting a shop purchase',sponsor:'Funding and voting', open_shop:'Opening a business', stock_shop:'Stocking the shop', order:'Placing a standing order', deliver:'Delivering an order', hobby:'Enjoying a hobby', invite:'Planning an activity', accept_invite:'Joining a neighbor', propose:'Making a proposal', fund:'Funding a service', civic_work:'Building a public service', maintain:'Maintaining a service', recover:'Visiting the clinic', gather: 'Gathering', give: 'Giving', steal: 'Stealing', take: 'Taking', talk: 'Talking', craft: 'Making tools', offer: 'Listing goods', buy: 'Shopping', cancel_offer: 'Collecting goods', request: 'Posting a need', fulfill: 'Making a delivery', request_cooking: 'Hiring a cook', fulfill_cooking: 'Cooking for a neighbor', contribute: 'Supplying a project', build: 'Building', request_work: 'Hiring help', fulfill_work: 'Working for a neighbor', craft_bed: 'Making a bed', craft_furnishing: 'Making furnishings', furnish: 'Improving a home', socialize: 'At the green', host_meal: 'Hosting a meal', attend: 'Sharing a meal', invalid: 'Confused' };
 const ICONS = { give: '🎁', steal: '✋', take: '🥣', talk: '💬', craft: '🛠', offer: '🏷', trade: '🤝', offer_expired: '↩' };
-const DILEMMAS = ['delivery','shop_opened','order_placed','shared_activity','invitation','invitation_declined','proposal','vote','proposal_passed','proposal_rejected','civic_completed','maintenance','recovery','give', 'steal', 'take', 'share', 'blocked', 'failure', 'offer', 'trade', 'cancel_offer', 'offer_expired', 'craft', 'request_posted', 'request_filled', 'cooking_service', 'work_contract', 'project_work', 'project_completed', 'home_improved', 'socialize', 'shared_meal', 'gathering_posted'];
+const DILEMMAS = ['shop_purchase','sponsored_vote','delivery','shop_opened','order_placed','shared_activity','invitation','invitation_declined','proposal','vote','proposal_passed','proposal_rejected','civic_completed','maintenance','recovery','give', 'steal', 'take', 'share', 'blocked', 'failure', 'offer', 'trade', 'cancel_offer', 'offer_expired', 'craft', 'request_posted', 'request_filled', 'cooking_service', 'work_contract', 'project_work', 'project_completed', 'home_improved', 'socialize', 'shared_meal', 'gathering_posted'];
 const professionName = role => ({ grower: 'Grower', woodcutter: 'Woodcutter', cook: 'Cook', craftsperson: 'Craftsperson' }[role] || role);
 // Static copy keyed by scenario id; never interpolates run data into HTML.
 const QUESTIONS = { sustainable: 'Who keeps supplies<br>moving?<br>Can cooperation<br>last ten days?', plenty: 'Who gathers?<br>Who cooks?<br>Who leaves a little<br>for someone else?', commons: 'Who holds back?<br>Who strips the trees?<br>Does anyone<br>say “enough”?', inequality: 'Do the haves<br>share?<br>Do the have-nots<br>ask, or take?' };
@@ -44,7 +44,7 @@ function renderVillage(w, a) {
   const b = current.batch;
   $('batch-section').hidden = !b;
   if (!b) return;
-  $('batch-summary').textContent = `${b.completedRuns}/${b.count} complete · ${b.status} · ${b.pendingRuns} waiting to begin${b.reason ? ' · ' + b.reason : ''}`;
+  $('batch-summary').textContent = `${b.completedRuns}/${b.count} complete · reviews every ${b.options.reviewHours||1} hour(s) · ${b.status} · ${b.pendingRuns} waiting to begin${b.reason ? ' · ' + b.reason : ''}`;
   $('batch-section').querySelector('h2').textContent = `${b.count} villages, fresh beginnings`;
   $('batch-rows').innerHTML = b.runs.map(r => `<tr><th><button class="quiet" data-run="${escape(r.id)}">${r.index}</button></th><td>${escape(r.status)}${r.status === 'paused' ? ' · ' + escape(r.pauseReason) : ''}</td><td>${r.failures}</td>${['trades','requestsFilled','cookingServices','deliveries','invitationsAccepted','civicCompleted','projectsCompleted','homesImproved','starvingHours','lowestHealth'].map(k => `<td>${r.metrics?.[k] ?? '—'}</td>`).join('')}<td><a href="${escape(r.report)}" target="_blank" rel="noopener">Evidence ↗</a></td></tr>`).join('');
   $('batch-aggregate').textContent = b.completedRuns ? ['requestsFilled','deliveries','invitationsAccepted','civicCompleted','projectsCompleted','starvingHours','lowestHealth'].filter(k => b.aggregate[k]).map(k => `${({deliveries:'Deliveries',invitationsAccepted:'Shared activities',civicCompleted:'Public services',requestsFilled:'Needs met',projectsCompleted:'Projects',starvingHours:'Starving hours',lowestHealth:'Lowest health'})[k]}: mean ${b.aggregate[k].mean}, range ${b.aggregate[k].min}–${b.aggregate[k].max}`).join(' · ') : 'Averages and ranges appear as runs finish.';
@@ -71,13 +71,13 @@ function renderLife(w,a) {
 }
 function render() {
   if (!displayed) return;
-  const w = displayed.world;
+  const w = displayed.world; const reviewInterval=12*(w.reviewHours||1);
   $('mode').textContent = w.mode === 'demo' ? 'DEMO · SCRIPTED' : 'CHATGPT · LIVE DECISIONS';
   const finished = w.tick >= w.maxTicks, totalDays = w.days || Math.ceil(w.maxTicks / 288);
   $('clock').textContent = `Day ${finished ? totalDays : Math.floor(w.tick / 288) + 1}${w.days ? ' / ' + totalDays : ''} · ${finished ? '24:00' : time(w.tick)}`;
   $('app-version').textContent = `App v${current.appVersion || '0.5.0'}`;
   $('run-version').textContent = `Simulation ${w.version.replace('world-','')} · Run ${w.id.slice(0,8)}`;
-  $('decision-pace').textContent = hourlyRun(w) ? `Hourly decisions · ${Math.min(w.maxTicks/12,(w.nextDecisionTick || 0)/12)} / ${w.maxTicks/12} rounds · quiet time skips ahead` : 'v1 pilot preserved · start a fresh run to use v4';
+  $('decision-pace').textContent = hourlyRun(w) ? `Every ${w.reviewHours||1} hour(s) · ${Math.min(w.maxTicks/reviewInterval,(w.nextDecisionTick || 0)/reviewInterval)} / ${w.maxTicks/reviewInterval} rounds · quiet time skips ahead` : 'v1 pilot preserved · start a fresh run to use v4';
   $('scenario-tag').textContent = w.scenario ? `CONDITION · ${w.scenario.name.toUpperCase()}${w.personas ? ' · TEMPERAMENTS' : ''}` : 'FIELD NOTE 001';
   $('scenario-question').innerHTML = w.economy ? 'Who makes?<br>Who trades?<br>What will they<br>build a living on?' : QUESTIONS[w.scenario?.id] || QUESTIONS.plenty;
   $('scenario-summary').textContent = (w.scenario?.summary || 'A one-day pilot in a shared world') + (w.economy ? ' Professions, gathering tools and a village market are active.' : '');
@@ -97,6 +97,12 @@ function render() {
   renderEconomy(w, a);
   renderVillage(w, a);
   renderLife(w,a);
+  $('coordination-section').hidden=!w.coordination;
+  if(w.coordination){
+    $('coordination-summary').textContent=`${w.coordination.stats.shopPurchases} shop pickups · ${w.coordination.stats.sponsoredVotes} funded votes · ${w.coordination.stats.openingStock} goods stocked on opening`;
+    $('coordination-plans').innerHTML=w.agents.filter(b=>b.task&&['gather','cook','craft','contribute','build','civic_work','maintain'].includes(b.task.action)).map(b=>`<article class="offer-card"><h3>${escape(b.name)}</h3><p>${escape(active(b))}</p></article>`).join('')||'<p class="hint">No public production tasks underway at this moment.</p>';
+  }
+  if($('execution-status'))$('execution-status').textContent=`Current execution: ${current.execution?.pace||'watch'} · reviews every ${w.reviewHours||1} hour(s)`;
   if (a.relationships) {
     const people = Object.values(a.relationships);
     $('inspector').innerHTML += `<p class="eyebrow">SOCIAL NOTEBOOK · PRIVATE TO ${escape(a.name.toUpperCase())}</p><p class="hint">Witnessed encounters; trust is the resident’s judgment.</p>${people.map(p => `<div class="memory"><b>${escape(p.name)}</b> · heard ${p.heardMessages} messages · received ${p.giftsReceived} gifts · robbed ${p.theftsSuffered} times${p.firstWords ? '<br>First words heard: ' + escape(p.firstWords.text) : ''}${p.lastWords && p.lastWords.tick !== p.firstWords?.tick ? '<br>Latest words heard: ' + escape(p.lastWords.text) : ''}${p.recentEvents.slice(-2).map(e => '<br>D' + (Math.floor(e.tick/288)+1) + ' ' + time(e.tick) + ' · ' + escape(e.text)).join('')}</div>`).join('') || '<p class="hint">No encounters recorded yet. Everyone begins as a stranger.</p>'}`;
@@ -208,7 +214,7 @@ async function account(){
 async function action(name,data={}){
   if(actionPending && name!=='pause')return;
   pendingActions++; actionPending=true;
-  const button=document.querySelector(name==='new'?'#new-run':name==='run'?'#play':'#'+name);
+  const button=document.querySelector(name==='new'?'#new-run':name==='run'?'#play':name==='pace'?'#apply-pace':'#'+name);
   const label=button?.textContent;
   const buttons=[...document.querySelectorAll('#owner-content button')];
   buttons.forEach(b=>b.disabled=b.id!=='pause');
@@ -225,19 +231,21 @@ async function action(name,data={}){
 }
 $('manage').onclick=async()=>{const s=await api('/api/session');owner=s.owner;$('owner-required').hidden=owner;$('owner-content').hidden=!owner;$('owner-dialog').showModal();if(owner){if(!defaultsApplied&&current){$('new-mode').value=current.world.mode;if(current.world.scenario){$('scenario').value=current.world.scenario.id;$('personas').checked=current.world.personas;}if($('economy').checked)$('scenario').value='sustainable';defaultsApplied=true;}account();}};
 $('claim-form').onsubmit=async e=>{e.preventDefault();try{await api('/api/claim',{token:$('setup-key').value.trim()});$('setup-key').value='';owner=true;$('owner-required').hidden=true;$('owner-content').hidden=false;$('owner-message').textContent='Owner access connected on this device.';await account();}catch(err){$('owner-message').textContent=err.message;}};
-for(const [id,name]of [['connect','connect'],['disconnect','disconnect'],['play','run'],['pause','pause'],['step','step'],['recover','recover']])$(id).onclick=()=>action(name);
+for(const [id,name]of [['connect','connect'],['disconnect','disconnect'],['play','run'],['pause','pause'],['step','step'],['recover','recover'],['apply-pace','pace']])$(id).onclick=()=>action(name,name==='pace'?{pace:$('pace').value}:{});
 $('refresh-account').onclick=async()=>{
   if(accountLoading||actionPending)return;
   const button=$('refresh-account');button.disabled=true;button.textContent='Checking…';ownerMessage('Checking your ChatGPT connection…');
   try{const s=await account();if(s)ownerMessage(s.connected?'ChatGPT is connected.':s.login?.userCode?'Sign-in is waiting for your approval using the code below.':'No ChatGPT account connected yet. Choose Connect ChatGPT.');}
   finally{button.disabled=false;button.textContent='Refresh';}
 };
-function updateBudget(){const days=Number($('days').value), count=Number($('run-count').value || 5);$('run-budget').textContent=Number.isInteger(days)&&days>=1&&days<=30&&Number.isInteger(count)&&count>=1&&count<=10?`${count} separate runs × ${days} days · ${(count*days*144).toLocaleString()} planned + ${count*12} retries · up to ${(count*(days*144+12)).toLocaleString()} model requests. Runs execute in series. Scripted demo makes no model requests.`:'Choose 1–30 whole days and 1–10 separate runs.';}
+function updateBudget(){const reviews=Number($('review-hours').value)||1;const days=Number($('days').value), count=Number($('run-count').value || 5);$('run-budget').textContent=Number.isInteger(days)&&days>=1&&days<=30&&Number.isInteger(count)&&count>=1&&count<=10?`${count} separate runs × ${days} days · ${(count*days*144/reviews).toLocaleString()} planned + ${count*12} retries · up to ${(count*(days*144/reviews+12)).toLocaleString()} model requests. Runs execute in series. Scripted demo makes no model requests.`:'Choose 1–30 whole days and 1–10 separate runs.';}
+$('review-hours').onchange=updateBudget;
 $('days').oninput=updateBudget; $('run-count').oninput=updateBudget;
-$('living-life').onchange=()=>{if($('living-life').checked){$('village-life').checked=true;$('economy').checked=true;$('scenario').value='sustainable';}};
-$('village-life').onchange=()=>{if($('village-life').checked){$('economy').checked=true;$('scenario').value='sustainable';}else $('living-life').checked=false;};
-$('economy').onchange=()=>{if($('economy').checked)$('scenario').value='sustainable';else {$('village-life').checked=false;$('living-life').checked=false;}};
-$('new-run').onclick=()=>{const days=Number($('days').value), runCount=Number($('run-count').value || 5);if(!Number.isInteger(days)||days<1||days>30||!Number.isInteger(runCount)||runCount<1||runCount>10){ownerMessage('Choose 1–30 whole days and 1–10 separate runs.',true);return;}if(($('economy').checked||$('village-life').checked||$('living-life').checked)&&$('scenario').value!=='sustainable'){ownerMessage('Choose Renewable village for the economy experiment.',true);return;}return action('new',{mode:$('new-mode').value,model:$('model').value,scenario:$('scenario').value,economy:$('economy').checked===true,village:$('village-life').checked===true,life:$('living-life').checked===true,runCount,personas:$('personas').checked,days,socialStart:$('social-start').checked});};
+$('coordination').onchange=()=>{if($('coordination').checked){$('living-life').checked=true;$('village-life').checked=true;$('economy').checked=true;$('scenario').value='sustainable';}};
+$('living-life').onchange=()=>{if($('living-life').checked){$('village-life').checked=true;$('economy').checked=true;$('scenario').value='sustainable';}else $('coordination').checked=false;};
+$('village-life').onchange=()=>{if($('village-life').checked){$('economy').checked=true;$('scenario').value='sustainable';}else {$('living-life').checked=false;$('coordination').checked=false;}};
+$('economy').onchange=()=>{if($('economy').checked)$('scenario').value='sustainable';else {$('village-life').checked=false;$('living-life').checked=false;$('coordination').checked=false;}};
+$('new-run').onclick=()=>{const days=Number($('days').value), runCount=Number($('run-count').value || 5);if(!Number.isInteger(days)||days<1||days>30||!Number.isInteger(runCount)||runCount<1||runCount>10){ownerMessage('Choose 1–30 whole days and 1–10 separate runs.',true);return;}if(($('economy').checked||$('village-life').checked||$('living-life').checked||$('coordination').checked)&&$('scenario').value!=='sustainable'){ownerMessage('Choose Renewable village for the economy experiment.',true);return;}return action('new',{mode:$('new-mode').value,model:$('model').value,scenario:$('scenario').value,economy:$('economy').checked===true,village:$('village-life').checked===true,life:$('living-life').checked===true,coordination:$('coordination').checked===true,pace:$('pace').value,reviewHours:Number($('review-hours').value)||1,runCount,personas:$('personas').checked,days,socialStart:$('social-start').checked});};
 for(const b of document.querySelectorAll('[data-filter]'))b.onclick=()=>{journalFilter=b.dataset.filter;for(const x of document.querySelectorAll('[data-filter]'))x.setAttribute('aria-pressed',String(x===b));render();};
 async function init(){const params=new URLSearchParams(location.hash.slice(1));const token=params.get('setup');if(token){history.replaceState(null,'',location.pathname);try{await api('/api/claim',{token});toast('Owner access connected on this device.');owner=true;}catch(e){toast(e.message);}}await poll();await loadFrames();if(owner)$('manage').click();}
 init();requestAnimationFrame(draw);setInterval(poll,1000);setInterval(loadFrames,6000);setInterval(()=>{if(owner&&$('owner-dialog').open&&!actionPending)account();},5000);

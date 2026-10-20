@@ -21,11 +21,11 @@ export class Research {
   summary({ world: w, updated }) {
     const counts = Object.fromEntries(this.db.prepare('SELECT kind,count(*) n FROM records WHERE run=? GROUP BY kind').all(w.id).map(r => [r.kind, r.n]));
     return { id: w.id, created: w.created, updated, worldVersion: w.version, mode: w.mode, model: w.model,
-      scenario: w.scenario || null, personas: w.personas ?? null, days: w.days ?? Math.ceil(w.maxTicks / 288), socialStart: w.socialStart ?? null, current: w.id === this.store.world.id,
+      scenario: w.scenario || null, personas: w.personas ?? null, days: w.days ?? Math.ceil(w.maxTicks / 288), reviewHours: w.reviewHours || 1, socialStart: w.socialStart ?? null, current: w.id === this.store.world.id,
       status: w.tick >= w.maxTicks ? 'completed' : w.running ? 'running' : 'paused', pauseReason: w.pauseReason,
       tick: w.tick, maxTicks: w.maxTicks, calls: w.calls, maxCalls: w.maxCalls,
       plannedCalls: w.plannedCalls ?? null, recovery: w.recovery ?? null, retriesUsed: w.retriesUsed ?? null,
-      decisionInputVersion: w.decisionInputVersion ?? null,
+      decisionInputVersion: w.decisionInputVersion ?? null, execution: w.execution || {version:1,pace:"watch"},
       economyVersion: w.economy?.version ?? null, villageVersion: w.village?.version ?? null, batch: w.batch ?? null,
       inputTokens: w.inputTokens, outputTokens: w.outputTokens, completedActions: w.completedActions,
       metrics: metrics(w), recordCounts: counts,
@@ -101,7 +101,7 @@ export class Research {
       format: 'ai-world-research-runtime-v1', generatedAt: new Date().toISOString(), appVersion: APP_VERSION, codeRevision: revision(),
       bootId: this.diagnostics.bootId, previousShutdown: this.diagnostics.previousShutdown,
       diagnosticWriteFailures: this.diagnostics.writeFailures, retentionEvents: this.diagnostics.limit, resources: resources(),
-      currentRunId: this.store.world.id, busy: this.runner.busy, running: this.store.world.running,
+      currentRunId: this.store.world.id, execution: this.runner.executionStats?.(), busy: this.runner.busy, running: this.store.world.running,
       activeRequest: this.runner.activeRequest, retry: this.runner.retryState,
       lifecycle: this.db.prepare("SELECT id,data FROM diagnostics WHERE json_extract(data,'$.event') IN ('server_start','server_stop') ORDER BY id DESC LIMIT 20").all().reverse().map(r => ({ id: r.id, data: JSON.parse(r.data) })),
     } };

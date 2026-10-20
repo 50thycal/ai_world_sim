@@ -5,7 +5,27 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.7.0 / village life v7
+## Current release: app v0.8.0 / coordinated village v8
+
+Fresh owner batches default to five ten-day v8 villages, hourly reviews and Fast execution. V8 adds
+stocked shop openings, one-item shop pickup, combined council pledges/votes, clearer public work plans,
+optional action examples and shorter model inputs. Specialist cooking produces four meals versus two
+for other residents; free cooking barter splits output evenly. Existing worlds keep their rules.
+
+Fast removes most display waiting while preserving all physics ticks, decisions and replay frames.
+Apply speed to a current batch only while paused. An optional two-hour review cadence halves planned
+model calls but changes villager decision opportunities; compare it as a separate experiment. Duration
+still supports 1–30 days. Keep ten-day replicates to establish adoption before testing 20-day durability.
+
+Stalled-turn inspection can recover actual validated output from an explicitly completed matching
+Codex turn if its completion notification was lost. Unknown/stale/partial responses still fail closed.
+Per-phase timings and retained completion provenance improve diagnosis; the underlying provider
+stall cause and actual live speed/adoption improvements are not yet established.
+
+See [rules, performance evidence and run guidance](docs/COORDINATED_VILLAGE.md). Reproduce the
+scripted pacing check with `npm run benchmark:execution`; it makes no model calls.
+
+## Earlier release: app v0.7.0 / village life v7
 
 Fresh owner batches default to v7, five separate ten-day villages. All v6 activities remain available.
 

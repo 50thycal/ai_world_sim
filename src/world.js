@@ -1,3 +1,4 @@
+import { COORDINATION_VERSION, COORDINATED_INPUT, hasCoordination, addCoordination, COORDINATION_ACTIONS, coordinationProblem, completeCoordinationAction, coordinationObservation } from './coordination.js';
 import { LIFE_VERSION, hasLife, addLife, LIFE_ACTIONS, LIFE_TARGETS, lifeSite, lifeProblem, completeLifeAction, expireLife, lifeObservation, lifeMetrics, lifeFoodOwned } from './life.js';
 import { VILLAGE_VERSION, hasVillage, addVillage, VILLAGE_ITEMS, VILLAGE_ACTIONS, PROJECTS, villageSite, villagePlanProblem, completeVillageAction, expireVillage, villageMetrics, villageObservation, cookingWood, spendCookingFuel } from './village.js';
 import { DatabaseSync } from 'node:sqlite';
@@ -11,17 +12,17 @@ import { ECONOMY_VERSION, hasEconomy, addEconomy, MARKET_ACTIONS, economyObserva
   marketPlanProblem, expireOffers, completeMarketAction, economyMetrics, productionWork, gatherYield,
   useTool, cookYield, practice, skillFor, craftCost } from './economy.js';
 
-export const APP_VERSION = '0.7.0';
+export const APP_VERSION = '0.8.0';
 export const GROUNDED_INPUT = 'current-facts-v1';
 export const VERSION = 'world-v4';
-export const LATEST_VERSION = LIFE_VERSION;
+export const LATEST_VERSION = COORDINATION_VERSION;
 const V3 = 'world-v3';
 const V2 = 'world-v2';
 // v2 and later share hourly decisions; v3 adds scenarios, social actions and behavior records.
-export const hourly = w => [V2, V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION].includes(w.version);
-export const isV3 = w => [V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION].includes(w.version);
-export const isV4 = w => [VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION].includes(w.version);
-export const groundedInput = w => isV4(w) && w.decisionInputVersion === GROUNDED_INPUT;
+export const hourly = w => [V2, V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION].includes(w.version);
+export const isV3 = w => [V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION].includes(w.version);
+export const isV4 = w => [VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION].includes(w.version);
+export const groundedInput = w => isV4(w) && [GROUNDED_INPUT, COORDINATED_INPUT].includes(w.decisionInputVersion);
 export const TICKS_PER_DAY = 288;
 export const DEFAULT_DAYS = 10;
 export const MAX_DAYS = 30;
@@ -32,6 +33,7 @@ export function validateDays(days) {
 }
 export const decodeFrame = state => JSON.parse(typeof state === 'string' ? state : inflateSync(state, { maxOutputLength: 2000000 }).toString('utf8'));
 export const DECISION_INTERVAL = 12; // Five-minute ticks: one decision per villager per simulated hour.
+export const decisionInterval = w => DECISION_INTERVAL * (w.reviewHours || 1);
 export const MIN_EAT_HUNGER = 40;
 export const decisionDue = w => hourly(w) && w.tick >= w.nextDecisionTick && w.tick < w.maxTicks;
 export const routineOnly = w => hourly(w) && w.agents.every(a => !a.task || a.task.action === 'wait' ||
@@ -73,7 +75,8 @@ export const DECISION_SCHEMA_V7 = { ...DECISION_SCHEMA_V6, properties: { ...DECI
   action: { type: 'string', enum: [...DECISION_SCHEMA_V6.properties.action.enum, ...LIFE_ACTIONS] },
   target: { type: 'string', enum: [...DECISION_SCHEMA_V6.properties.target.enum, ...LIFE_TARGETS] },
   item: { type: 'string', enum: [...DECISION_SCHEMA_V6.properties.item.enum, 'leisure_kit', 'care'] } } };
-export const decisionSchema = version => version === LIFE_VERSION ? DECISION_SCHEMA_V7 : version === VILLAGE_VERSION ? DECISION_SCHEMA_V6 : version === ECONOMY_VERSION ? DECISION_SCHEMA_V5
+export const DECISION_SCHEMA_V8 = { ...DECISION_SCHEMA_V7, properties: { ...DECISION_SCHEMA_V7.properties, action: { type: 'string', enum: [...DECISION_SCHEMA_V7.properties.action.enum,...COORDINATION_ACTIONS] } } };
+export const decisionSchema = version => version === COORDINATION_VERSION ? DECISION_SCHEMA_V8 : version === LIFE_VERSION ? DECISION_SCHEMA_V7 : version === VILLAGE_VERSION ? DECISION_SCHEMA_V6 : version === ECONOMY_VERSION ? DECISION_SCHEMA_V5
   : [V3, VERSION].includes(version) ? DECISION_SCHEMA_V3 : DECISION_SCHEMA;
 
 // Experimental conditions. Each run copies its scenario into the world so replays never depend on these constants.
@@ -104,7 +107,11 @@ const bump = (a, key, n = 1) => { if (a.stats) a.stats[key] += n; };
 const itemName = item => item === 'raw' ? 'ingredient' : item;
 export const looks = a => a.hunger >= 80 ? 'starving' : a.hunger >= 55 ? 'hungry' : a.health < 60 ? 'unwell' : a.energy < 25 ? 'exhausted' : 'well';
 
-export function newWorld(mode = 'demo', model = null, { scenario, personas = false, days = DEFAULT_DAYS, socialStart = true, economy = false, village = false, life = false } = {}) {
+export function newWorld(mode = 'demo', model = null, { scenario, personas = false, days = DEFAULT_DAYS, socialStart = true, economy = false, village = false, life = false, coordination = false, pace, reviewHours = 1 } = {}) {
+  if (typeof coordination !== 'boolean') throw new Error('Choose whether to enable coordinated village life');
+  if (![1,2].includes(reviewHours) || (!coordination && reviewHours!==1)) throw new Error('Two-hour reviews require the v8 experiment; choose 1 or 2 hours');
+  if (coordination) life = true;
+  if (pace !== undefined && !['fast','watch'].includes(pace)) throw new Error('Choose fast or watch execution');
   if (typeof life !== 'boolean') throw new Error('Choose whether to enable village livelihoods and personal life');
   if (life) village = true;
   if (typeof village !== 'boolean') throw new Error('Choose whether to enable cooperative village life');
@@ -117,12 +124,12 @@ export function newWorld(mode = 'demo', model = null, { scenario, personas = fal
   const s = SCENARIOS[scenario];
   validateDays(days);
   const w = {
-    version: life ? LIFE_VERSION : village ? VILLAGE_VERSION : economy ? ECONOMY_VERSION : VERSION, id: randomUUID(), created: new Date().toISOString(),
+    version: coordination ? COORDINATION_VERSION : life ? LIFE_VERSION : village ? VILLAGE_VERSION : economy ? ECONOMY_VERSION : VERSION, id: randomUUID(), created: new Date().toISOString(),
     mode, model, running: false, pauseReason: 'Ready for an owner to start', tick: 0,
     nextDecisionTick: 0, decisionRound: null, skippedTicks: 0,
-    days, socialStart: Boolean(socialStart), decisionInputVersion: GROUNDED_INPUT,
-    maxTicks: TICKS_PER_DAY * days, plannedCalls: 144 * days,
-    maxCalls: 144 * days + RETRY_LIMIT, recovery: recoveryPolicy(), retriesUsed: 0, calls: 0, inputTokens: 0, outputTokens: 0,
+    days, socialStart: Boolean(socialStart), decisionInputVersion: coordination ? COORDINATED_INPUT : GROUNDED_INPUT,
+    maxTicks: TICKS_PER_DAY * days, plannedCalls: 144 * days / reviewHours,
+    maxCalls: 144 * days / reviewHours + RETRY_LIMIT, recovery: recoveryPolicy(), retriesUsed: 0, calls: 0, inputTokens: 0, outputTokens: 0,
     completedActions: 0, shares: 0, mealsCooked: 0,
     scenario: { id: scenario, name: s.name, summary: s.summary, regrow: clone(s.regrow), capacity: clone(s.capacity),
       ...(s.regeneration ? { regeneration: s.regeneration } : {}) },
@@ -141,11 +148,13 @@ export function newWorld(mode = 'demo', model = null, { scenario, personas = fal
   if (economy) addEconomy(w);
   if (village) addVillage(w);
   if (life) addLife(w);
+  if (coordination) { addCoordination(w); w.reviewHours=reviewHours; }
+  if (pace !== undefined) w.execution = { version: 1, pace };
   return w;
 }
 
 export function validateDecision(d, version) {
-  const schema = decisionSchema(version), v5 = [ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION].includes(version), v3 = [V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION].includes(version);
+  const schema = decisionSchema(version), v5 = [ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION].includes(version), v3 = [V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION].includes(version);
   if (!d || typeof d !== 'object' || Object.keys(d).sort().join(',') !== schema.required.toSorted().join(',') ||
       !schema.properties.action.enum.includes(d.action) || !schema.properties.target.enum.includes(d.target) ||
       (v3 && !schema.properties.item.enum.includes(d.item)) ||
@@ -179,7 +188,7 @@ export function observation(w, a) {
       socialContext: socialObservation(w, a) } : {}),
     ...(v3 ? { scenario: `${w.scenario.name}. ${w.scenario.summary}`, ...(a.persona ? { temperament: a.persona } : {}) } : {}),
     position: { x: a.x, y: a.y }, hunger: a.hunger, energy: a.energy, health: a.health,
-    ...(hourly(w) ? { currentTask: clone(a.task), nextReviewMinutes: 60, decisionNumber: Math.floor(w.tick / DECISION_INTERVAL) + 1 } : {}),
+    ...(hourly(w) ? { currentTask: clone(a.task), nextReviewMinutes: decisionInterval(w)*5, decisionNumber: Math.floor(w.tick / decisionInterval(w)) + 1 } : {}),
     ...(v3 ? { myRecentPlans: a.plans.slice(-3).map(p => ({ minute: p.tick * 5, action: p.action, target: p.target, item: p.item, reason: p.reason })) } : {}),
     inventory: clone(a.inventory), memories: a.memories.slice(-12), places: PLACES,
     nearbyVillagers: w.agents.filter(b => b.id !== a.id && dist(a, b) <= 4)
@@ -219,7 +228,7 @@ export function observation(w, a) {
   const pantryReachable = dist(a, PLACES.pantry) <= 1;
   const sources = [a.inventory.meal > 0 && 'carried_meal', pantryReachable && w.pantry > 0 && 'pantry_meal',
     a.inventory.raw > 0 && 'carried_raw'].filter(Boolean);
-  return {
+  const input = {
     // Serialize current facts before long social history, using the same threshold
     // as the engine. Eligibility is information, never an automatic action.
     currentFacts: {
@@ -237,6 +246,7 @@ export function observation(w, a) {
     },
     ...o,
   };
+  return hasCoordination(w) ? coordinationObservation(w,a,input) : input;
 }
 
 const DEMO_LINES = ['How is everyone getting on with dinner?', 'The orchard looks thinner than this morning.', 'Anyone need a hand at the hearth?',
@@ -318,10 +328,11 @@ export function assign(w, a, decision) {
   const required = { cook: 'hearth', share: 'pantry', rest: 'shelter', take: 'pantry' };
   a.lastReason = d.reason;
   if (isV3(w) && d.action !== 'continue') a.plans = [...a.plans, { tick: w.tick, action: d.action, target: d.target, item: d.item, reason: d.reason }].slice(-6);
-  const lifeIssue = hasLife(w) ? (LIFE_TARGETS.includes(d.target) && d.action !== 'continue' && !LIFE_ACTIONS.includes(d.action) ? 'activity and civic targets require life actions' : lifeProblem(w,a,d)) : null;
+  const coordinationIssue = hasCoordination(w) ? coordinationProblem(w,a,d) : null;
+  const lifeIssue = coordinationIssue || (hasLife(w) ? (LIFE_TARGETS.includes(d.target) && d.action !== 'continue' && ![...LIFE_ACTIONS,...COORDINATION_ACTIONS].includes(d.action) ? 'activity and civic targets require life actions' : lifeProblem(w,a,d)) : null);
   const villageIssue = lifeIssue || (hasVillage(w) ? (Object.hasOwn(PROJECTS, d.target) && d.action !== 'continue' && !VILLAGE_ACTIONS.includes(d.action) ? 'project targets are only for village project actions' : villagePlanProblem(w, a, d)) : null);
   const marketIssue = villageIssue || (hasEconomy(w) ? marketPlanProblem(w, a, d) : null);
-  if (hasVillage(w) && !VILLAGE_ACTIONS.includes(d.action) && !MARKET_ACTIONS.includes(d.action) && !(hasLife(w) && LIFE_ACTIONS.includes(d.action)) && (d.price !== 0 || d.offerId !== 0)) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: 'ordinary actions use price 0 and offerId 0', target: null, work: 1 }; return; }
+  if (hasVillage(w) && !VILLAGE_ACTIONS.includes(d.action) && !MARKET_ACTIONS.includes(d.action) && !(hasLife(w) && LIFE_ACTIONS.includes(d.action)) && !(hasCoordination(w) && COORDINATION_ACTIONS.includes(d.action)) && (d.price !== 0 || d.offerId !== 0)) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: 'ordinary actions use price 0 and offerId 0', target: null, work: 1 }; return; }
   if (marketIssue) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: marketIssue, target: null, work: 1 }; return; }
   if (hourly(w) && d.action === 'continue') {
     if (!a.task) a.task = { ...d, action: 'wait', target: null, work: 1 };
@@ -330,12 +341,12 @@ export function assign(w, a, decision) {
   const problem = isV3(w) ? planProblem(a, d) : null;
   const issue = problem;
   if (issue) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: issue, target: null, work: 1 }; return; }
-  const target = hasLife(w) && LIFE_ACTIONS.includes(d.action) ? lifeSite(w,d) : hasVillage(w) && VILLAGE_ACTIONS.includes(d.action) ? villageSite(w, d) : hasEconomy(w) && MARKET_ACTIONS.includes(d.action) ? 'square' : required[d.action] || (d.target === 'none' ? null : d.target);
+  const target = hasCoordination(w) && COORDINATION_ACTIONS.includes(d.action) ? 'square' : hasLife(w) && LIFE_ACTIONS.includes(d.action) ? lifeSite(w,d) : hasVillage(w) && VILLAGE_ACTIONS.includes(d.action) ? villageSite(w, d) : hasEconomy(w) && MARKET_ACTIONS.includes(d.action) ? 'square' : required[d.action] || (d.target === 'none' ? null : d.target);
   if (hourly(w) && a.task?.action === d.action && a.task.target === target && (a.task.item ?? 'none') === (d.item ?? 'none') &&
-      (!hasEconomy(w) || (a.task.offerId === d.offerId && a.task.price === d.price && (![...VILLAGE_ACTIONS,...LIFE_ACTIONS].includes(d.action) || a.task.customerId === d.target) && (d.action !== 'buy' || a.task.sellerId === d.target)))) {
+      (!hasEconomy(w) || (a.task.offerId === d.offerId && a.task.price === d.price && (![...VILLAGE_ACTIONS,...LIFE_ACTIONS,...COORDINATION_ACTIONS].includes(d.action) || a.task.customerId === d.target) && (d.action !== 'buy' || a.task.sellerId === d.target)))) {
     a.task.reason = d.reason; a.task.message = d.message; return;
   }
-  a.task = { ...d, ...((hasVillage(w) && VILLAGE_ACTIONS.includes(d.action) || hasLife(w) && LIFE_ACTIONS.includes(d.action)) ? { customerId: d.target, projectId: d.target } : {}), ...(d.action === 'buy' ? { sellerId: d.target } : {}), target,
+  a.task = { ...d, ...((hasVillage(w) && VILLAGE_ACTIONS.includes(d.action) || hasLife(w) && LIFE_ACTIONS.includes(d.action) || hasCoordination(w) && COORDINATION_ACTIONS.includes(d.action)) ? { customerId: d.target, projectId: d.target } : {}), ...(d.action === 'buy' ? { sellerId: d.target } : {}), target,
     work: d.action === 'rest' ? 8 : ['hobby','accept_invite','recover'].includes(d.action) ? 6 : ['give', 'steal', 'take', 'offer', 'buy', 'cancel_offer'].includes(d.action) ? 1 : productionWork(w, a, d.action, target) };
 }
 
@@ -418,6 +429,9 @@ export function advance(w) {
         const result = completeVillageAction(w, a, t, cookYield(w, a));
         text = result.text; failed = Boolean(result.failed); kind = result.kind || kind; extra = result.extra || {}; break;
       }
+      case 'shop_buy': case 'sponsor': {
+        const result=completeCoordinationAction(w,a,t);text=result.text;failed=Boolean(result.failed);kind=result.kind||kind;extra=result.extra||{};break;
+      }
       case 'open_shop': case 'stock_shop': case 'close_shop': case 'order': case 'cancel_order': case 'deliver': case 'craft_kit': case 'hobby': case 'invite': case 'accept_invite': case 'decline_invite': case 'propose': case 'vote_yes': case 'vote_no': case 'fund': case 'civic_supply': case 'civic_work': case 'maintain': case 'recover': {
         const result = completeLifeAction(w,a,t);
         text=result.text; failed=Boolean(result.failed); kind=result.kind || kind; extra=result.extra || {}; break;
@@ -467,7 +481,7 @@ export function advance(w) {
   if (isV4(w) && w.tick % TICKS_PER_DAY === 0) {
     const cumulative = { ...metrics(w), gathered: w.agents.reduce((n, a) => n + a.stats.gathered, 0),
       gatheredFood: w.agents.reduce((n, a) => n + a.stats.gatheredFood, 0), gatheredWood: w.agents.reduce((n, a) => n + a.stats.gatheredWood, 0), mealsCooked: w.mealsCooked };
-    const daily = Object.fromEntries(['gifts', 'thefts', 'theftAttempts', 'pantryShares', 'pantryTakes', 'messages', 'blocked', 'rawMeals', 'starvingHours', 'gathered', 'gatheredFood', 'gatheredWood', 'mealsCooked', ...(hasEconomy(w) ? ['trades', 'coinsTraded', 'toolsCrafted', 'toolsUsed', 'offersPosted'] : []), ...(hasVillage(w) ? Object.keys(w.village.stats) : []), ...(hasLife(w) ? Object.keys(w.life.stats) : [])]
+    const daily = Object.fromEntries(['gifts', 'thefts', 'theftAttempts', 'pantryShares', 'pantryTakes', 'messages', 'blocked', 'rawMeals', 'starvingHours', 'gathered', 'gatheredFood', 'gatheredWood', 'mealsCooked', ...(hasEconomy(w) ? ['trades', 'coinsTraded', 'toolsCrafted', 'toolsUsed', 'offersPosted'] : []), ...(hasVillage(w) ? Object.keys(w.village.stats) : []), ...(hasLife(w) ? Object.keys(w.life.stats) : []), ...(hasCoordination(w) ? Object.keys(w.coordination.stats) : [])]
       .map(k => [k, Math.round((cumulative[k] - (w.previousDayMetrics?.[k] || 0)) * 10) / 10]));
     events.push({ kind: 'day_summary', tick: w.tick, day: w.tick / TICKS_PER_DAY, text: `Day ${w.tick / TICKS_PER_DAY} complete.`, daily, cumulative,
       residents: w.agents.map(a => ({ id: a.id, name: a.name, hunger: a.hunger, health: a.health, inventory: clone(a.inventory),
@@ -487,7 +501,7 @@ export function metrics(w) {
   return { gifts: sum('gave'), thefts: sum('stole'), theftAttempts: sum('stealAttempts'), pantryShares: sum('shared'), pantryTakes: sum('took'),
     messages: sum('talked'), blocked: sum('blocked'), rawMeals: sum('ateRaw'), starvingHours: Math.round(sum('starvingTicks') / DECISION_INTERVAL * 10) / 10,
     foodGini: Math.round(gini * 100) / 100, orchard: w.resources.food, woods: w.resources.wood, pantry: w.pantry,
-    lowestHealth: Math.round(Math.min(...w.agents.map(a => a.health))), ...economyMetrics(w), ...villageMetrics(w), ...lifeMetrics(w) };
+    lowestHealth: Math.round(Math.min(...w.agents.map(a => a.health))), ...economyMetrics(w), ...villageMetrics(w), ...lifeMetrics(w), ...(hasCoordination(w) ? w.coordination.stats : {}) };
 }
 
 export class WorldStore {

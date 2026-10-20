@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { failureCode } from './diagnostics.js';
 import { instructionsFor } from './codex.js';
 import { slotAttempts, retriesUsed, transientFailure, RETRY_DELAYS } from './recovery.js';
-import { advance, assign, demoDecision, observation, decisionSchema, groundedInput, isV4, hourly, decisionDue, DECISION_INTERVAL, routineOnly, APP_VERSION } from './world.js';
+import { advance, assign, demoDecision, observation, decisionSchema, groundedInput, isV4, hourly, decisionDue, decisionInterval, routineOnly, APP_VERSION } from './world.js';
 
 export class Runner {
   constructor(store, codex, diagnostics = { emit() {} }, { retryDelays = RETRY_DELAYS } = {}) {
@@ -21,7 +21,7 @@ export class Runner {
   }
   cancelled() { const error = new Error('Decision recovery cancelled by owner'); error.cancelled = true; return error; }
   async proposal(w, a, generation = this.generation) {
-    let decision, usage = {};
+    let decision, usage = {}, completionSource, usageReported;
     if (w.mode === 'chatgpt') {
       if (w.calls >= w.maxCalls) throw new Error(`${w.maxCalls}-request run budget reached`);
       if (!w.model) throw new Error('Choose a model for this new ChatGPT run');
@@ -70,10 +70,10 @@ export class Runner {
         }
         break;
       }
-      decision = result.decision; usage = result.usage || {};
+      decision = result.decision; usage = result.usage || {}; completionSource=result.completionSource; usageReported=result.usageReported;
       w.inputTokens += usage.inputTokens || 0; w.outputTokens += usage.outputTokens || 0;
     } else decision = demoDecision(w, a);
-    return { decision, record: { kind: 'decision', ...(this.activeRequest ? { requestId: this.activeRequest.requestId } : {}), appVersion: APP_VERSION, tick: w.tick, actor: a.name, source: w.mode, model: w.model, decision, usage, pendingRound: true } };
+    return { decision, record: { kind: 'decision', ...(this.activeRequest ? { requestId: this.activeRequest.requestId } : {}), appVersion: APP_VERSION, tick: w.tick, actor: a.name, source: w.mode, model: w.model, decision, usage, ...(completionSource?{completionSource,usageReported}:{}), pendingRound: true } };
   }
   persisted() {
     if (this.activeRequest) this.diagnostics.emit({ event: 'decision_persisted', ...this.activeRequest, pendingProposals: this.store.world.decisionRound?.decisions.length || 0 });
@@ -113,7 +113,7 @@ export class Runner {
       }
       if (this.generation !== generation) return;
       for (const [a, d] of decisions) assign(w, a, d);
-      if (reviewed && hourly(w)) { w.nextDecisionTick += DECISION_INTERVAL; w.decisionRound = null; }
+      if (reviewed && hourly(w)) { w.nextDecisionTick += decisionInterval(w); w.decisionRound = null; }
       this.tick(reviewed ? [{ kind: 'round', appVersion: APP_VERSION, tick: w.tick, source: w.mode, actors: decisions.map(([a]) => a.id), decisionsApplied: true }] : []);
       if (reviewed) this.diagnostics.emit({ event: 'round_persisted', runId: w.id, worldVersion: w.version, tick: w.tick, calls: w.calls, completedActions: w.completedActions });
       const fromTick = w.tick;

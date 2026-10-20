@@ -1,3 +1,30 @@
+# v0.8.0 coordinated village and faster execution — 2026-10-20
+
+- All 144 local tests and syntax checks pass. New tests cover bounded initial shop escrow, exact
+  one-item pickup and racing consumers, four distinct sponsored votes/refunds, specialist four-meal
+  services/equal barter, private condensed inputs, optional cadence/budgets, a full ten-day
+  observation-only reference policy with health 100/no starvation, five paused/reloaded v8 members,
+  identical fast/watch physics/frames, pace HTTP authorization, and scheduler no-overlap/shutdown.
+- The actual adapter with fake transport recovers only an explicitly completed same-thread/same-turn
+  model message. Stale turn/thread and malformed output do not become decisions. Completion source
+  and usage presence are retained; new phase timing diagnostics do not expose upstream bodies.
+  Focused execution/Codex/recovery tests pass after final provenance and scheduler error-path edits.
+- Local desktop 1440×1000 and phone 390×844 browser acceptance pass, including default v8/Fast,
+  stocked shop purchase, sponsored vote, unchanged coin total, applying speed to a paused saved
+  batch, retained themes and legacy market/village/batch inspection. Viewport emulation, not a
+  physical phone test. Model inference is not part of browser acceptance.
+- Scripted pacing benchmark: 12 identical physics steps, Watch 14,431ms, Fast 143ms, zero model
+  calls. Mature-snapshot input payloads shrink about 23–25%. Neither result measures end-to-end
+  live inference speed or spontaneous market adoption.
+- Reviewed 201 successful deployed worker summaries: median 4,191ms, p95 5,708ms, maximum sampled
+  memory about 830MB on a 1GB limit. No parallel workers or higher resource cap introduced. The
+  inspected historical 90s inference stall has no completed message/usage and no observed OOM;
+  its upstream cause remains unconfirmed. New stalled-turn reads are protocol-tested, not yet
+  demonstrated against an authenticated live stalled turn.
+- No production state was reset, resumed, migrated or used for scripted benchmarks. Fresh v8 input
+  and rules changes require new experiments; old batches retain version/cadence. Explicit owner
+  pacing is operational and recorded. Actual deployment/persistence/latency/adoption remain live checks.
+
 # v0.7.0 village life and worker recovery — 2026-10-20
 
 - Syntax checks and 129 local tests pass, including v7 consent/escrow, daily-delivery limits,

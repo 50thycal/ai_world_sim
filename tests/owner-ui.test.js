@@ -19,7 +19,7 @@ async function fixture(backend){
   return elements.get(id);
  };
  const buttons=['connect','disconnect','play','pause','step','refresh-account','new-run'].map(element);
- element('run-count').value='5';element('village-life').checked=false;element('days').value='10';element('social-start').checked=true;
+ element('pace').value='fast';element('run-count').value='5';element('village-life').checked=false;element('days').value='10';element('social-start').checked=true;
  const state={world:newWorld(),events:[],busy:false};
  const context={document:{getElementById:element,querySelector:s=>element(s.slice(1)),querySelectorAll:s=>s==='#owner-content button'?buttons:[]},
   fetch:async(path,options)=>{const response=await backend(path,options);const result=response??{data:path==='/api/state'?state:path==='/api/frames'?[]:{connected:false,available:true}};return{ok:result.ok!==false,json:async()=>result.data};},
@@ -76,7 +76,7 @@ test('v3 runs show their experimental condition and behavior ledger, and new run
  assert.match(element('thefts').innerHTML,/1 <em>\/ 3 tries/);assert.match(element('gini').innerHTML,/0\.42/);assert.match(element('orchard').innerHTML,/^6 /);
  assert.match(element('inspector').innerHTML,/BEHAVIOR RECORD/);assert.match(element('inspector').innerHTML,/community-minded/);
  element('scenario').value='inequality';element('personas').checked=true;element('model').value='';await element('new-run').onclick();
- assert.deepEqual(sent,{mode:'demo',model:'',scenario:'inequality',economy:false,village:false,life:false,runCount:5,personas:true,days:10,socialStart:true});
+ assert.deepEqual(sent,{mode:'demo',model:'',scenario:'inequality',economy:false,village:false,life:false,coordination:false,pace:'fast',reviewHours:1,runCount:5,personas:true,days:10,socialStart:true});
 });
 
 test('market view escapes resident text and owner controls explicitly select economy or baseline',async()=>{
@@ -93,7 +93,7 @@ test('market view escapes resident text and owner controls explicitly select eco
 
 test('v4 duration controls update the budget, preserve midnight labels and expose private social notes',async()=>{
  const {element,state,render}=await fixture(async()=>undefined);
- element('run-count').value='5';element('village-life').checked=false;element('days').value='10';element('days').oninput();assert.match(element('run-budget').textContent,/7,200/);
+ element('pace').value='fast';element('run-count').value='5';element('village-life').checked=false;element('days').value='10';element('days').oninput();assert.match(element('run-budget').textContent,/7,200/);
  element('days').value='2.5';await element('new-run').onclick();assert.match(element('owner-message').textContent,/whole days/);
  state.world.tick=288;state.world.nextDecisionTick=288;render();
  assert.equal(element('clock').textContent,'Day 2 / 10 · 00:00');assert.match(element('decision-pace').textContent,/24 \/ 240 rounds/);

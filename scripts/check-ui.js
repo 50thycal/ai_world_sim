@@ -49,6 +49,7 @@ try {
     assert.equal(await page.getByLabel('Separate runs').inputValue(), '5');
     assert.equal(await page.getByLabel('Requests, projects, homes & gatherings (v6)').isChecked(),true);
     assert.equal(await page.getByLabel('Businesses, hobbies & council (v7)').isChecked(),true);
+    assert.equal(await page.getByLabel('Clearer coordination & trade benefits (v8)').isChecked(),true);
     assert.equal(await page.getByLabel('Encourage introductions on arrival').isChecked(), true);
     await page.locator('#scenario').selectOption('sustainable');
     await page.getByLabel('Simulation days').fill('3');
@@ -59,7 +60,8 @@ try {
     await page.getByRole('button', { name: 'Create paused batch' }).click();
     await page.getByText('Batch ready. Press Play village / batch to begin.', { exact: true }).waitFor();
     assert.equal(app.store.world.scenario.id, 'sustainable');
-    assert.equal(app.store.world.version, 'world-v7');
+    assert.equal(app.store.world.version, 'world-v8');
+    assert.equal(app.store.world.execution.pace,'fast');
     await page.getByRole('button', { name: 'Close owner controls' }).click();
     await page.getByRole('heading', { name: 'The village market' }).waitFor();
     await page.getByRole('heading', { name: 'Work, homes & the village green' }).waitFor();
@@ -102,15 +104,21 @@ try {
     const shop=app.store.world.life.shops[0];act(mira,{action:'stock_shop',target:'square',item:'meal',offerId:shop.id});
     act(fen,{action:'order',target:mira.id,item:'meal',price:1,offerId:shop.id});
     const order=app.store.world.life.orders[0];act(mira,{action:'deliver',target:fen.id,item:'meal',price:1,offerId:order.id});
-    act(asha,{action:'invite',target:'music',item:'none'});act(bolt,{action:'propose',target:'clinic',item:'none'});act(mira,{action:'fund',target:'clinic',item:'none',price:2});
+    act(bolt,{action:'shop_buy',target:mira.id,item:'meal',price:1,offerId:shop.id});
+    act(asha,{action:'invite',target:'music',item:'none'});act(bolt,{action:'propose',target:'clinic',item:'none'});act(mira,{action:'sponsor',target:'clinic',item:'none',price:2});
     await page.reload();await page.getByRole('heading',{name:'A village with plans'}).waitFor();
-    assert.equal(await page.locator('#life-shops article').count(),1);assert.equal(await page.locator('#life-orders article').count(),1);
+    assert.equal(await page.locator('#life-shops article').count(),1);
+    assert.match(await page.locator('#coordination-summary').innerText(),/1 shop pickups.*1 funded votes/);assert.equal(await page.locator('#life-orders article').count(),1);
     assert.equal(await page.locator('#life-council article').count(),2);assert.match(await page.locator('#life-summary').innerText(),/1 delivery/);
     assert.match(await page.locator('#life-council').innerText(),/2 public coins/);assert.match(await page.locator('#inspector').innerText(),/PERSONAL PLANS/);
     assert.match(await page.locator('#market-summary').innerText(),/48 coins total/);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     await page.screenshot({path:`${screenshots}/v7-${name}-life.png`,fullPage:true});
     await page.getByRole('button',{name:'Owner controls ↗'}).click();
     await page.getByRole('button',{name:'Restart worker & resume saved round'}).waitFor();
+    const sameRun=app.store.world.id,sameCalls=app.store.world.calls;
+    await page.getByLabel('Execution speed').selectOption('watch');await page.getByRole('button',{name:'Apply speed to paused batch'}).click();
+    await page.getByText('Done.',{exact:true}).waitFor();assert.equal(app.store.world.execution.pace,'watch');assert.equal(app.store.world.id,sameRun);assert.equal(app.store.world.calls,sameCalls);
+    await page.getByLabel('Execution speed').selectOption('fast');await page.getByRole('button',{name:'Apply speed to paused batch'}).click();await page.getByText('Done.',{exact:true}).waitFor();assert.equal(app.store.world.execution.pace,'fast');
     await page.getByRole('button',{name:'Close owner controls'}).click();
     // A real five-run scripted queue populates comparison results and archival inspection.
     app.batches.create('demo',null,{village:true,days:1,socialStart:false});app.batches.play();

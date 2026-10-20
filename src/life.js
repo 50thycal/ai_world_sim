@@ -1,6 +1,7 @@
+import { COORDINATION_VERSION, openingStock } from './coordination.js';
 // world-v7 only. Standing consent, stocks, budgets and social commitments are saved physics.
 export const LIFE_VERSION = 'world-v7';
-export const hasLife = w => w.version === LIFE_VERSION && w.life?.version === 1;
+export const hasLife = w => [LIFE_VERSION,COORDINATION_VERSION].includes(w.version) && w.life?.version === 1;
 export const HOBBIES = ['music', 'games', 'walking'];
 export const CIVIC = {
   clinic: { name: 'Community clinic', site: 'shelter', benefit: 'Fed residents can recover health; care deliveries restore 12 instead of 8 health.' },
@@ -107,7 +108,7 @@ export function completeLifeAction(w,a,t) {
   if(t.action==='open_shop') {
     if(l.shops.some(s=>s.ownerId===a.id))return fail('one shop per resident; close it before changing its item or price.');
     const s={id:l.nextId++,ownerId:a.id,owner:a.name,item:t.item,price:t.price,stock:0,openedAt:w.tick,expiresAt:w.tick+864};
-    l.shops.push(s);l.stats.shopsOpened++;return{kind:'shop_opened',text:`opened a ${s.item} business, ${s.price} coins per delivery, for three days.`,extra:{shopId:s.id,item:s.item,price:s.price}};
+    const stocked=openingStock(w,a,s);l.shops.push(s);l.stats.shopsOpened++;return{kind:'shop_opened',text:`opened a ${s.item} business, ${s.price} coins per delivery, for three days${stocked?`; stocked ${stocked} carried goods`:``}.`,extra:{stocked,shopId:s.id,item:s.item,price:s.price}};
   }
   if(t.action==='stock_shop'||t.action==='close_shop') {
     const s=l.shops.find(s=>s.id===id&&s.ownerId===a.id);

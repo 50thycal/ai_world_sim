@@ -62,3 +62,21 @@ start/resume/reset a run just to inspect it. Model dialogue and stated reasons a
   or successful live recovery from protocol tests. Known temporary startup signatures may retry;
   unknown/auth/quota/invalid/memory/storage failures pause. Owner worker recovery retains all saved
   proposals, failures, budgets and versions, and never creates a replacement run.
+
+- Coordinated life is opt-in `world-v8` (`coordination:true`, implies life/village/economy). Preserve
+  old inputs/physics. Condensed `coordinated-facts-v1` inputs keep authoritative facts first, public
+  work intentions, local stock visibility and private notebooks; examples never force choices.
+- V8 specialist cooking yields four meals; others still two. Free cooking barter splits output
+  equally. Shop opening escrows up to three carried goods, leaving one; shop_buy accepts exact
+  merchant/item/unit price/shop ID for one pickup. Sponsor pledges coins and casts only one's own
+  vote; four distinct residents remain required. Exactly 48 coins including all escrows/budgets.
+- Execution pace is operational: watch 1200ms, fast 10ms between steps. No overlapping workers,
+  skipped physics/saves or altered model choices. Existing worlds retain their pace until owner
+  changes it while paused; record that policy and carry it to queued members. Restart stays paused.
+- Optional V8 reviewHours 2 is a separate treatment: 72 instead of 144 planned calls/day. Save it,
+  label it and never compare it as merely faster rendering. Default hourly, ten days, five runs.
+- Stalled-turn reads must match the active thread AND turn and confirm completed status before
+  validating actual model output. Unknown/partial/stale results never become decisions. Preserve
+  completionSource and usageReported; missing token telemetry is not zero billed usage. Keep the
+  90s deadline, two automatic retries and twelve shared extras. No claim of provider-cause repair
+  or live speed/adoption from fake transport and scripted pacing benchmarks.
