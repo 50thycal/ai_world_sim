@@ -233,3 +233,13 @@ wall-clock delays only; restart stays paused. Worker summaries include phase tim
 probes. A recovered decision retains completionSource=thread_read and usageReported; absent usage
 cannot establish zero provider charges. Only completed matching turns with valid model JSON may be
 recovered. Diagnostic retention limits still apply; scientific failure and retry records remain.
+
+## Storage and startup diagnostics (app v0.8.1)
+
+Runtime adds `storage` (actual data-filesystem total/available bytes, 32 MiB minimum, readiness,
+database/WAL bytes and reusable pages) and `diagnosticLastWriteError` (a fixed numeric-SQLite-derived
+category, never raw exception text). Service disk metrics alone cannot establish volume exhaustion.
+New scientific inputs are losslessly compressed in SQLite and decoded by research/export readers;
+the public record format and exact model inputs remain unchanged. Legacy rows remain readable.
+See [STORAGE_RECOVERY.md](STORAGE_RECOVERY.md) for the retained v8 startup failure evidence,
+classification limits, restart checks and optional offline compaction. No reads compact or prune data.

@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 import readline from 'node:readline';
-import {writeFileSync,existsSync} from 'node:fs';
+import {writeFileSync,existsSync,readFileSync,unlinkSync} from 'node:fs';
 import {join} from 'node:path';
 let n=0,threadParams,polledThread;
 const send=x=>process.stdout.write(JSON.stringify(x)+'\n');
 for await(const line of readline.createInterface({input:process.stdin})){
  const m=JSON.parse(line);if(m.id===undefined)continue;
  switch(m.method){
- case 'initialize':send({id:m.id,result:{userAgent:'fake'}});break;
+ case 'initialize': {
+  const marker=join(process.env.CODEX_HOME,'test-startup-failure');
+  if(existsSync(marker)) { const condition=readFileSync(marker,'utf8'); unlinkSync(marker); process.stderr.write('SECRET-account SECRET-token '+condition+' SECRET-path\n',()=>process.exit(1)); break; }
+ } send({id:m.id,result:{userAgent:'fake'}});break;
  case 'account/read':send({id:m.id,result:{account:{type:'chatgpt',planType:'test'}}});break;
  case 'model/list':send({id:m.id,result:{data:[{model:'test-model',displayName:'Test model',isDefault:true}]}});break;
  case 'account/login/start':send({id:m.id,result:{type:'chatgptDeviceCode',verificationUrl:'https://auth.openai.com/codex/device',userCode:'TEST-0000',loginId:'login-test'}});break;

@@ -1,3 +1,20 @@
+# v0.8.1 storage and startup recovery — 2026-10-21
+
+- All 150 local tests and syntax checks pass. Final focused storage/diagnostic checks also pass
+  after exclusive compaction locking and SQLite failure classification updates. No UI changes.
+- Tests cover original mixed legacy/compressed input reads before inference, public pages/coverage,
+  exports, restart and stable evidence IDs; idempotent offline compaction; low filesystem headroom
+  without additional model calls; and a real SQLite-full write with its original rollback error.
+- Fake app-server processes test initialize-time exit categories/redaction, bounded retry of a known
+  startup lock with retained failure/request linkage, and terminal disk-full/auth/quota/memory/unknown
+  startup errors. The pinned official CLI initialization/account-read test also passes without auth.
+- Local re-encoding of 2,116 deployed request records saves 52% of serialized record bytes. No claim
+  of volume-wide savings, lower model usage or authenticated live recovery. Original production
+  startup cause remains unknown because v0.8.0 discarded stderr and diagnostic write-error categories.
+- Production data/credentials and volume allocation were not changed. No live run was resumed, reset
+  or compacted. Deployment starts paused. Inspect actual filesystem headroom before restarting; enlarge
+  the existing volume if necessary. See [storage recovery](STORAGE_RECOVERY.md).
+
 # v0.8.0 coordinated village and faster execution — 2026-10-20
 
 - All 144 local tests and syntax checks pass. New tests cover bounded initial shop escrow, exact

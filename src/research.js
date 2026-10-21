@@ -1,3 +1,4 @@
+import { decodeRecord } from './storage.js';
 import { batchReport } from './batches.js';
 import { APP_VERSION, LATEST_VERSION, MAX_SAVED_RUNS, decodeFrame, metrics } from './world.js';
 import { resources } from './diagnostics.js';
@@ -34,7 +35,7 @@ export class Research {
   }
   ledger(id) {
     // Extract metadata in SQLite: long runs must not materialize every full prompt for a ledger.
-    const rows = this.db.prepare("SELECT id,json_object('kind',kind,'requestId',json_extract(data,'$.requestId'),'number',json_extract(data,'$.number'),'actor',json_extract(data,'$.actor'),'actorId',json_extract(data,'$.actorId'),'tick',json_extract(data,'$.tick'),'appVersion',json_extract(data,'$.appVersion'),'codeRevision',json_extract(data,'$.codeRevision'),'inputRecorded',json_type(data,'$.input') IS NOT NULL,'attemptNumber',json_extract(data,'$.attemptNumber'),'retryOf',json_extract(data,'$.retryOf'),'automaticRetry',json_extract(data,'$.automaticRetry')) data FROM records WHERE run=? AND kind IN ('request','decision','failure') ORDER BY id").all(id);
+    const rows = this.db.prepare("SELECT id,json_object('kind',kind,'requestId',json_extract(data,'$.requestId'),'number',json_extract(data,'$.number'),'actor',json_extract(data,'$.actor'),'actorId',json_extract(data,'$.actorId'),'tick',json_extract(data,'$.tick'),'appVersion',json_extract(data,'$.appVersion'),'codeRevision',json_extract(data,'$.codeRevision'),'inputRecorded',(json_type(data,'$.input') IS NOT NULL OR json_extract(data,'$.inputEncoding')='deflate-base64-v1'),'attemptNumber',json_extract(data,'$.attemptNumber'),'retryOf',json_extract(data,'$.retryOf'),'automaticRetry',json_extract(data,'$.automaticRetry')) data FROM records WHERE run=? AND kind IN ('request','decision','failure') ORDER BY id").all(id);
     const outcomes = new Map();
     for (const row of rows) {
       const r = JSON.parse(row.data);
@@ -84,7 +85,7 @@ export class Research {
     const columns = table === 'frames' ? 'id,tick' : 'id,data';
     const rows = this.db.prepare(`SELECT ${columns} FROM ${table} WHERE ${where} AND id>? AND id<=? ORDER BY id LIMIT ?`).all(id, after, through, limit + 1);
     const more = rows.length > limit;
-    const items = rows.slice(0, limit).map(row => table === 'frames' ? row : { id: row.id, data: JSON.parse(row.data) });
+    const items = rows.slice(0, limit).map(row => table === 'frames' ? row : { id: row.id, data: table === 'records' ? decodeRecord(row.data) : JSON.parse(row.data) });
     return { format: 'ai-world-research-page-v1', runId: id, collection: table, after, through, limit, items,
       nextAfter: more ? items.at(-1).id : null, retained: bounds,
       ...(table === 'diagnostics' ? { retention: 'Globally bounded; old events may expire even during pagination. Only events explicitly linked to this run are included.' } : {}) };
@@ -100,6 +101,7 @@ export class Research {
     if (path === `${ROOT}/runtime`) return { status: 200, body: {
       format: 'ai-world-research-runtime-v1', generatedAt: new Date().toISOString(), appVersion: APP_VERSION, codeRevision: revision(),
       bootId: this.diagnostics.bootId, previousShutdown: this.diagnostics.previousShutdown,
+      storage: this.store.storageStatus(), diagnosticLastWriteError: this.diagnostics.lastWriteError,
       diagnosticWriteFailures: this.diagnostics.writeFailures, retentionEvents: this.diagnostics.limit, resources: resources(),
       currentRunId: this.store.world.id, execution: this.runner.executionStats?.(), busy: this.runner.busy, running: this.store.world.running,
       activeRequest: this.runner.activeRequest, retry: this.runner.retryState,
