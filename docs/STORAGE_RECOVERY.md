@@ -46,6 +46,8 @@ indexes and other data also occupy storage.
 
 ## Deployment and restart
 
+For deployment verification, app `/health` must report version `0.8.1` or later to confirm the PR #12 storage fixes are serving. A GitHub merge alone does not confirm deployment.
+
 Merge/deploy normally; the service always starts paused. Inspect the new runtime storage fields
 before resuming the existing member. If the actual data filesystem is low, enlarge the existing
 Railway volume before resuming (5 GB is a reasonable initial capacity, then monitor growth). This
