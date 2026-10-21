@@ -80,3 +80,10 @@ start/resume/reset a run just to inspect it. Model dialogue and stated reasons a
   completionSource and usageReported; missing token telemetry is not zero billed usage. Keep the
   90s deadline, two automatic retries and twelve shared extras. No claim of provider-cause repair
   or live speed/adoption from fake transport and scripted pacing benchmarks.
+
+- App v0.8.1 storage encoding compresses request inputs only; use decodeRecord for scientific rows.
+  Preserve original API/export shapes, exact inputs, IDs and SQL-queryable request metadata. Never
+  auto-prune evidence. Offline compaction requires stopped processes, backup and temporary headroom.
+- Check actual data-filesystem space, not service disk metrics alone. Low/unknown space pauses before
+  work; raw stderr is never published. Only fixed startup signatures may classify a failure; unknown
+  exits still pause, and an observed OOM always overrides retryable categories. See STORAGE_RECOVERY.

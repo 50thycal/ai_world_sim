@@ -20,6 +20,7 @@ export function resources(read = path => readFileSync(path, 'utf8')) {
 
 export function failureCode(error) {
   if (error?.diagnosticCode) return error.diagnosticCode;
+  if (Number.isInteger(error?.errcode)) return sqliteWriteCondition(error);
   const message = String(error?.message || '');
   if (/timed out/i.test(message)) return 'timeout';
   if (/memory limit reached/i.test(message)) return 'memory_kill_observed';
@@ -29,10 +30,14 @@ export function failureCode(error) {
   return 'unclassified';
 }
 
+export function sqliteWriteCondition(error) {
+  return ({ 5:'database_busy', 6:'database_locked', 8:'database_readonly', 10:'database_io', 13:'storage_full' })[error?.errcode & 255] || 'database_write_failed';
+}
+
 // A separate bounded table: diagnostics retention never deletes scientific run evidence.
 export class Diagnostics {
   constructor(db, { log = event => console.info(JSON.stringify(event)), limit = 20000 } = {}) {
-    this.db = db; this.log = log; this.limit = Math.max(100, limit); this.bootId = randomUUID(); this.writeFailures = 0;
+    this.db = db; this.log = log; this.limit = Math.max(100, limit); this.bootId = randomUUID(); this.writeFailures = 0; this.lastWriteError = null;
     db.exec('CREATE TABLE IF NOT EXISTS diagnostics (id INTEGER PRIMARY KEY, data TEXT NOT NULL)');
     db.exec("CREATE INDEX IF NOT EXISTS diagnostics_run ON diagnostics(json_extract(data,'$.runId'),id)");
     const last = db.prepare('SELECT data FROM diagnostics ORDER BY id DESC LIMIT 1').get();
@@ -56,12 +61,12 @@ export class Diagnostics {
     }
     for (const key of ['expected', 'connected', 'oomKillObserved', 'running', 'busy', 'willRetry', 'messageReceived', 'usageReceived']) if (typeof event[key] === 'boolean') safe[key] = event[key];
     try { this.insert.run(JSON.stringify(safe)); this.trim.run(this.limit); }
-    catch { this.writeFailures++; }
+    catch (error) { this.writeFailures++; this.lastWriteError = sqliteWriteCondition(error); }
     try { this.log(safe); } catch { /* Diagnostics must not change simulation outcomes. */ }
   }
   report(limit = 1000) {
     return { format: 'ai-world-diagnostics-v1', appVersion: APP_VERSION, bootId: this.bootId,
-      previousShutdown: this.previousShutdown, writeFailures: this.writeFailures, retentionEvents: this.limit,
+      previousShutdown: this.previousShutdown, writeFailures: this.writeFailures, lastWriteError: this.lastWriteError, retentionEvents: this.limit,
       resources: resources(), events: this.db.prepare('SELECT data FROM diagnostics ORDER BY id DESC LIMIT ?').all(Math.min(20000, Math.max(1, limit))).reverse().map(row => JSON.parse(row.data)) };
   }
 }

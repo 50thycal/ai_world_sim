@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, chmodSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, chmodSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CodexClient, isolatedConfig, rpcFailure, providerFailure, rpcDiagnostic, rpcCondition } from '../src/codex.js';
+import { CodexClient, isolatedConfig, rpcFailure, providerFailure, rpcDiagnostic, rpcCondition, startupCondition } from '../src/codex.js';
 import { fileURLToPath } from 'node:url';
 
 test('villager harness disables shell, browser, apps and shared agent credentials',()=>{
@@ -137,4 +137,22 @@ test('stalled-turn inspection recovers only a completed matching turn and valida
   for(const name of ['StaleComplete','WrongPolledThread'])await assert.rejects(c.decide({name},'test-model',{worldVersion:'world-v8'}),/timed out/);
   await assert.rejects(c.decide({name:'InvalidPolledOutput'},'test-model',{worldVersion:'world-v8'}));assert.ok(!JSON.stringify(events).includes('SECRET'));assert.equal(c.decisionWorker,null);
  }finally{await c.stop();rmSync(dir,{recursive:true,force:true});}
+});
+
+
+test('startup stderr exposes only fixed classifications and unknown exits remain terminal',async()=>{
+ const binary=fileURLToPath(new URL('./fake-codex.js',import.meta.url));
+ for(const [text,code] of [['No space left on device','worker_storage_full'],['Cannot allocate memory','worker_memory_error'],['authentication failed','unauthorized'],['quota exceeded','usageLimitExceeded'],['rate limit','rateLimitExceeded'],['database is locked','worker_startup_transient'],['unknown SECRET',null]]){
+  assert.equal(startupCondition(text),code);
+  const dir=mkdtempSync(join(tmpdir(),'codex-startup-')),events=[];
+  mkdirSync(join(dir,'codex'));writeFileSync(join(dir,'codex','test-startup-failure'),text);
+  const client=new CodexClient({dataDir:dir,binary,onDiagnostic:e=>events.push(e)});
+  try{
+   await assert.rejects(client.decide({name:'Mira'},'test-model'),error=>code?error.diagnosticCode===code:/exit 1/.test(error.message));
+   assert.equal(client.decisionWorker,null);
+   assert.equal(events.find(e=>e.event==='decision_worker_summary').phase,'initialize');
+   assert.equal(events.find(e=>e.event==='decision_worker_summary').failureCode,code||'worker_transport');
+   assert.ok(!JSON.stringify(events).includes('SECRET'));
+  }finally{await client.stop();rmSync(dir,{recursive:true,force:true});}
+ }
 });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, chmodSync } from 'node:fs';
+import { mkdtempSync, rmSync, chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -171,4 +171,19 @@ test('owner worker recovery restarts only the connection and resumes the five sa
  const response=await post('/api/admin/recover',{},cookie);assert.equal(response.status,200);assert.equal(stops,1);assert.ok(starts>=1);assert.equal(w.id,id);assert.equal(w.tick,432);assert.equal(w.calls,222);assert.equal(w.running,true);assert.deepEqual(w.agents,before);assert.equal(w.decisionRound.decisions.length,5);
  assert.equal((await post('/api/admin/recover',{},cookie)).status,400);await app.runner.step();assert.deepEqual(called,['Reed']);assert.equal(w.calls,223);assert.equal(w.retriesUsed,1);assert.equal(w.id,id);assert.equal(w.version,'world-v6');assert.ok(app.store.export().records.some(r=>r.kind==='failure'&&r.requestId==='reed-failed'));assert.ok(app.store.export().records.some(r=>r.kind==='request'&&r.retryOf==='reed-failed'));
  }finally{if(app)await app.close();rmSync(dir,{recursive:true,force:true});if(prior===undefined)delete process.env.OWNER_SETUP_TOKEN;else process.env.OWNER_SETUP_TOKEN=prior;}
+});
+
+test('recognized initialize lock retries once with failure linkage; startup disk full never retries',async()=>{
+ for(const [signature,expectedCalls,expectedCode] of [['database is locked',7,'worker_startup_transient'],['No space left on device',1,'worker_storage_full']]){
+  const f=fixture(),s=f.store,c=new CodexClient({dataDir:f.dir,binary:fileURLToPath(new URL('./fake-codex.js',import.meta.url))});
+  mkdirSync(join(f.dir,'codex'),{recursive:true});writeFileSync(join(f.dir,'codex','test-startup-failure'),signature);
+  try{
+   const runner=new Runner(s,c,undefined,{retryDelays:[0,0]});
+   if(expectedCalls===1)await assert.rejects(runner.step(true),{diagnosticCode:expectedCode});else await runner.step(true);
+   assert.equal(s.world.calls,expectedCalls);assert.equal(s.world.retriesUsed,expectedCalls===1?0:1);
+   const rows=s.export().records,failed=rows.find(r=>r.kind==='failure');assert.equal(failed.failureCode,expectedCode);
+   if(expectedCalls>1)assert.ok(rows.some(r=>r.kind==='request'&&r.retryOf===failed.requestId));
+   assert.equal(c.decisionWorker,null);assert.ok(!JSON.stringify(rows.filter(r=>r.kind==='failure')).includes('SECRET'));
+  }finally{await c.stop();f.close();}
+ }
 });

@@ -1,3 +1,4 @@
+import { diskSpace, requireStorage } from './storage.js';
 import { COORDINATED_INPUT } from './coordination.js';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -69,6 +70,27 @@ export function rpcCondition(error, method) {
   return known;
 }
 
+// Classify stderr in memory only, using fixed signatures. Raw text is never retained or logged.
+export function startupCondition(text) {
+  for (const [pattern, code] of [
+    [/no space left on device|disk full|database or disk is full|SQLITE_FULL/i, 'worker_storage_full'],
+    [/out of memory|memory allocation|cannot allocate memory/i, 'worker_memory_error'],
+    [/unauthorized|unauthenticated|authentication failed|token expired|login required/i, 'unauthorized'],
+    [/usage limit|quota exceeded|credits exhausted/i, 'usageLimitExceeded'],
+    [/rate limit|too many requests/i, 'rateLimitExceeded'],
+    [/resource temporarily unavailable|database is locked|connection reset by peer/i, 'worker_startup_transient'],
+  ]) if (pattern.test(text)) return code;
+  return null;
+}
+const startupMessages = {
+  worker_storage_full: 'Codex storage is full; increase capacity before resuming.',
+  worker_memory_error: 'Codex reported a memory allocation failure; paused for owner review.',
+  unauthorized: 'Codex authentication needs attention; reconnect ChatGPT before resuming.',
+  usageLimitExceeded: 'Codex usage limit reached; check subscription access before resuming.',
+  rateLimitExceeded: 'Codex rate limit reached; paused for owner review.',
+  worker_startup_transient: 'Codex startup failed temporarily; bounded recovery will retry.',
+};
+
 // Confirmed against the pinned CLI's generated CodexErrorInfo schema. Unknown variants stay unknown.
 export function providerFailure(info) {
   const names = ['contextWindowExceeded', 'sessionBudgetExceeded', 'usageLimitExceeded', 'rateLimitExceeded',
@@ -117,6 +139,7 @@ export class CodexClient extends EventEmitter {
     mkdirSync(home, { recursive: true, mode: 0o700 }); chmodSync(home, 0o700);
     mkdirSync(cwd, { recursive: true, mode: 0o700 });
     this.cwd = cwd;
+    requireStorage(diskSpace(home));
     const args = ['app-server', '--listen', 'stdio://'];
     for (const [k, v] of Object.entries(isolatedConfig())) args.push('-c', `${k}=${JSON.stringify(v)}`);
     // Deliberately do not inherit API keys, Railway tokens, owner secrets or existing agent credentials.
@@ -133,14 +156,24 @@ export class CodexClient extends EventEmitter {
       if (line.length > 2_000_000) return this.stop();
       try { this.#message(JSON.parse(line)); } catch { /* Never log model or auth protocol contents. */ }
     });
-    child.stderr.on('data', () => {}); // May contain credentials or prompts; not forwarded into platform logs.
+    let stderrTail = '';
+    child.stderr.on('data', chunk => {
+      if (this.ready || child.expectedStop) return;
+      // A small tail handles signatures split across chunks. Only the enum escapes this handler.
+      const text = stderrTail + chunk.toString('utf8');
+      const condition = startupCondition(text);
+      if (condition && (!child.startupCondition || child.startupCondition === 'worker_startup_transient')) child.startupCondition = condition;
+      stderrTail = text.slice(-256);
+    });
+    child.once('close', () => { stderrTail = ''; });
     child.on('error', () => this.#died(child, 'Codex binary unavailable'));
-    child.on('exit', (code, signal) => {
+    child.on('close', (code, signal) => {
       const memory = memoryCounters();
       const oomKillObserved = memory.oomKills !== null && child.oomAtStart !== null && memory.oomKills > child.oomAtStart;
+      if (oomKillObserved) child.startupCondition = 'worker_memory_error';
       const detail = oomKillObserved ? 'memory limit reached' : signal ? `signal ${signal}` : `exit ${code}`;
       this.onDiagnostic({ event: 'codex_exit', role: this.worker ? 'decision' : 'control',
-        code, signal, expected: Boolean(child.expectedStop), oomKillObserved, memoryMB: memory.memoryMB });
+        code, signal, failureCode: child.startupCondition || (oomKillObserved ? 'worker_memory_error' : 'worker_transport'), expected: Boolean(child.expectedStop), oomKillObserved, memoryMB: memory.memoryMB });
       this.#died(child, `Codex ${this.worker ? 'decision worker' : 'control process'} stopped (${detail}); run paused`);
     });
     this.phase = 'initialize'; this.onDiagnostic({ event: 'codex_phase', role: this.worker ? 'decision' : 'control', phase: this.phase });
@@ -152,11 +185,14 @@ export class CodexClient extends EventEmitter {
   }
   #died(child, message) {
     if (this.child !== child) return;
-    this.ready = false; this.child = null; if (!child.expectedStop) this.lastError = message;
+    this.ready = false; this.child = null;
     this.account = { connected: false };
-    for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(new Error(message)); }
+    const error = new Error(startupMessages[child.startupCondition] || message);
+    if (!child.expectedStop) this.lastError = error.message;
+    if (child.startupCondition) error.diagnosticCode = child.startupCondition;
+    for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(error); }
     this.pending.clear();
-    if (this.active) { this.active.reject(new Error(message)); this.active = null; }
+    if (this.active) { this.active.reject(error); this.active = null; }
   }
   send(msg) { if (!this.child?.stdin.writable) throw new Error('Codex is not running'); this.child.stdin.write(JSON.stringify(msg) + '\n'); }
   rpc(method, params = {}, timeout = this.timeout) {

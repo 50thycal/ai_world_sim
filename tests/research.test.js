@@ -64,7 +64,10 @@ test('public research retrieves archived evidence with bounded stable pages, sco
     await app.close(); base = await open();
     assert.equal((await get(`/api/research/runs/${id}`)).evidence.records.count, 208);
     assert.equal((await get('/api/research')).currentRunId, oldCurrent);
-    assert.equal((await get('/api/research/runtime')).previousShutdown, 'clean');
+    const runtime = await get('/api/research/runtime');
+    assert.equal(runtime.previousShutdown, 'clean'); assert.equal(runtime.storage.ready, true);
+    assert.ok(runtime.storage.availableBytes >= runtime.storage.minimumFreeBytes);
+    assert.equal(runtime.diagnosticLastWriteError, null);
     // Execute the actual agent command against HTTP; no API keys or owner cookies.
     const output = await new Promise((resolve, reject) => {
       const child = spawn(process.execPath, ['scripts/inspect-sim.js', '--url', base, '--run', id, '--evidence']);

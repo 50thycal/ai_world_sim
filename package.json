@@ -1,6 +1,6 @@
 {
   "name": "ai_world_sim",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "private": true,
   "engines": {
     "node": ">=24"
@@ -10,10 +10,11 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test tests/*.test.js",
-    "check": "node --check scripts/benchmark-execution.js && node --check scripts/check-ui.js && node --check src/coordination.js && node --check src/execution.js && node --check src/life.js && node --check src/village.js && node --check src/batches.js && node --check src/economy.js && node --check src/recovery.js && node --check src/social.js && node --check src/research.js && node --check scripts/inspect-sim.js && node --check src/diagnostics.js && node --check src/runner.js && node --check src/server.js && node --check src/world.js && node --check src/codex.js && node --check public/app.js && node --check public/theme.js",
+    "check": "node --check src/storage.js && node --check scripts/compact-evidence.js && node --check scripts/benchmark-execution.js && node --check scripts/check-ui.js && node --check src/coordination.js && node --check src/execution.js && node --check src/life.js && node --check src/village.js && node --check src/batches.js && node --check src/economy.js && node --check src/recovery.js && node --check src/social.js && node --check src/research.js && node --check scripts/inspect-sim.js && node --check src/diagnostics.js && node --check src/runner.js && node --check src/server.js && node --check src/world.js && node --check src/codex.js && node --check public/app.js && node --check public/theme.js",
     "check:ui": "node scripts/check-ui.js",
     "smoke:codex": "node scripts/check-codex.js",
     "benchmark:execution": "node scripts/benchmark-execution.js",
+    "compact:evidence": "node scripts/compact-evidence.js",
     "inspect:sim": "node scripts/inspect-sim.js"
   },
   "repository": {

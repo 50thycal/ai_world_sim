@@ -35,6 +35,7 @@ export class Runner {
         const slot = policy ? slotAttempts(this.store, a) : { count: 0, previousRequestId: null };
         const used = policy ? w.retriesUsed ?? retriesUsed(this.store) : 0;
         if (policy && slot.count && used >= policy.retryLimit) throw new Error('Run retry allowance exhausted; paused for owner review');
+        this.store.checkStorage();
         const requestId = randomUUID();
         if (policy && slot.count) w.retriesUsed = used + 1;
         // Scientific evidence only: the exact closed-world input, never host/account state.
@@ -87,6 +88,7 @@ export class Runner {
     if (w.tick >= w.maxTicks) throw new Error('Pilot complete. Start a new run.');
     this.busy = true; const generation = this.generation;
     try {
+      this.store.checkStorage();
       let decisions = [], reviewed = false;
       // All proposals see the same frozen physical world. Apply only after the complete round.
       if (hourly(w)) {
@@ -124,7 +126,7 @@ export class Runner {
       if (e.cancelled) return;
       this.diagnostics.emit({ event: 'run_failed', runId: w.id, tick: w.tick, requestId: this.activeRequest?.requestId, failureCode: failureCode(e) });
       this.pause(e.message);
-      this.store.save(e.failureRecorded ? [] : [{ kind: 'failure', ...(this.activeRequest ? { requestId: this.activeRequest.requestId } : {}), appVersion: APP_VERSION, tick: w.tick, text: e.message, source: w.mode }], true);
+      this.store.save(e.failureRecorded ? [] : [{ kind: 'failure', ...(this.activeRequest ? { requestId: this.activeRequest.requestId } : {}), appVersion: APP_VERSION, tick: w.tick, failureCode: failureCode(e), text: e.message, source: w.mode }], true);
       throw e;
     } finally { this.busy = false; this.pendingName = null; this.activeRequest = null; this.retryState = null; }
   }

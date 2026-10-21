@@ -1,3 +1,4 @@
+import { encodeRecord, decodeRecord, diskSpace, requireStorage, storageStatus } from './storage.js';
 import { COORDINATION_VERSION, COORDINATED_INPUT, hasCoordination, addCoordination, COORDINATION_ACTIONS, coordinationProblem, completeCoordinationAction, coordinationObservation } from './coordination.js';
 import { LIFE_VERSION, hasLife, addLife, LIFE_ACTIONS, LIFE_TARGETS, lifeSite, lifeProblem, completeLifeAction, expireLife, lifeObservation, lifeMetrics, lifeFoodOwned } from './life.js';
 import { VILLAGE_VERSION, hasVillage, addVillage, VILLAGE_ITEMS, VILLAGE_ACTIONS, PROJECTS, villageSite, villagePlanProblem, completeVillageAction, expireVillage, villageMetrics, villageObservation, cookingWood, spendCookingFuel } from './village.js';
@@ -12,7 +13,7 @@ import { ECONOMY_VERSION, hasEconomy, addEconomy, MARKET_ACTIONS, economyObserva
   marketPlanProblem, expireOffers, completeMarketAction, economyMetrics, productionWork, gatherYield,
   useTool, cookYield, practice, skillFor, craftCost } from './economy.js';
 
-export const APP_VERSION = '0.8.0';
+export const APP_VERSION = '0.8.1';
 export const GROUNDED_INPUT = 'current-facts-v1';
 export const VERSION = 'world-v4';
 export const LATEST_VERSION = COORDINATION_VERSION;
@@ -507,8 +508,9 @@ export function metrics(w) {
 export class WorldStore {
   constructor(path) {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+    this.path = path;
     this.db = new DatabaseSync(path);
-    this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
+    this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA wal_autocheckpoint=128; PRAGMA journal_size_limit=1048576;
       CREATE TABLE IF NOT EXISTS batches (id TEXT PRIMARY KEY, state TEXT NOT NULL, updated TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS worlds (id TEXT PRIMARY KEY, state TEXT NOT NULL, updated TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS records (id INTEGER PRIMARY KEY, run TEXT NOT NULL, tick INTEGER NOT NULL, kind TEXT NOT NULL, data TEXT NOT NULL);
@@ -534,24 +536,26 @@ export class WorldStore {
     try {
       this.db.prepare('INSERT OR REPLACE INTO worlds VALUES (?,?,?)').run(this.world.id, JSON.stringify(this.world), new Date().toISOString());
       const insert = this.db.prepare('INSERT INTO records(run,tick,kind,data) VALUES (?,?,?,?)');
-      for (const e of events) insert.run(this.world.id, this.world.tick, e.kind, JSON.stringify(e));
+      for (const e of events) insert.run(this.world.id, this.world.tick, e.kind, encodeRecord(e));
       if (frame) this.db.prepare('INSERT INTO frames(run,tick,state) VALUES (?,?,?)').run(this.world.id, this.world.tick,
         isV4(this.world) ? deflateSync(JSON.stringify(this.world), { level: 1 }) : JSON.stringify(this.world));
       if (batch) this.db.prepare('INSERT OR REPLACE INTO batches VALUES (?,?,?)').run(batch.id, JSON.stringify(batch), new Date().toISOString());
       this.db.exec('COMMIT');
-    } catch (e) { this.db.exec('ROLLBACK'); throw e; }
+    } catch (e) { if (this.db.isTransaction) { try { this.db.exec('ROLLBACK'); } catch {} } throw e; }
   }
   reset(mode, model, options) {
     if (this.db.prepare('SELECT count(*) n FROM worlds').get().n >= MAX_SAVED_RUNS) throw new Error(`${MAX_SAVED_RUNS} saved runs retained. Export and archive before starting more.`);
     this.world = newWorld(mode, model, options); this.save([], true);
   }
   records(limit = 100) {
-    return this.db.prepare('SELECT data FROM records WHERE run=? ORDER BY id DESC LIMIT ?').all(this.world.id, limit).reverse().map(r => JSON.parse(r.data));
+    return this.db.prepare('SELECT data FROM records WHERE run=? ORDER BY id DESC LIMIT ?').all(this.world.id, limit).reverse().map(r => decodeRecord(r.data));
   }
   frames() { return this.db.prepare('SELECT id,tick FROM frames WHERE run=? ORDER BY id').all(this.world.id); }
   frame(id) { const r = this.db.prepare('SELECT state FROM frames WHERE run=? AND id=?').get(this.world.id, id); return r ? decodeFrame(r.state) : null; }
   export() {
-    return { format: 'ai-world-run-v1', world: clone(this.world), metrics: metrics(this.world), records: this.db.prepare('SELECT data FROM records WHERE run=? ORDER BY id').all(this.world.id).map(r => JSON.parse(r.data)) };
+    return { format: 'ai-world-run-v1', world: clone(this.world), metrics: metrics(this.world), records: this.db.prepare('SELECT data FROM records WHERE run=? ORDER BY id').all(this.world.id).map(r => decodeRecord(r.data)) };
   }
+  checkStorage() { requireStorage(diskSpace(dirname(this.path))); }
+  storageStatus() { return storageStatus(this.path, this.db); }
   close() { this.db.close(); }
 }
