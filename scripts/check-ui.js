@@ -49,6 +49,7 @@ try {
     assert.equal(await page.getByLabel('Separate runs').inputValue(), '5');
     assert.equal(await page.getByLabel('Requests, projects, homes & gatherings (v6)').isChecked(),true);
     assert.equal(await page.getByLabel('Businesses, hobbies & council (v7)').isChecked(),true);
+    assert.equal(await page.getByLabel('Plans, paid jobs & varied wellbeing (v9)').isChecked(),true);
     assert.equal(await page.getByLabel('Clearer coordination & trade benefits (v8)').isChecked(),true);
     assert.equal(await page.getByLabel('Encourage introductions on arrival').isChecked(), true);
     await page.locator('#scenario').selectOption('sustainable');
@@ -60,7 +61,7 @@ try {
     await page.getByRole('button', { name: 'Create paused batch' }).click();
     await page.getByText('Batch ready. Press Play village / batch to begin.', { exact: true }).waitFor();
     assert.equal(app.store.world.scenario.id, 'sustainable');
-    assert.equal(app.store.world.version, 'world-v8');
+    assert.equal(app.store.world.version, 'world-v9');
     assert.equal(app.store.world.execution.pace,'fast');
     await page.getByRole('button', { name: 'Close owner controls' }).click();
     await page.getByRole('heading', { name: 'The village market' }).waitFor();
@@ -105,7 +106,7 @@ try {
     act(fen,{action:'order',target:mira.id,item:'meal',price:1,offerId:shop.id});
     const order=app.store.world.life.orders[0];act(mira,{action:'deliver',target:fen.id,item:'meal',price:1,offerId:order.id});
     act(bolt,{action:'shop_buy',target:mira.id,item:'meal',price:1,offerId:shop.id});
-    act(asha,{action:'invite',target:'music',item:'none'});act(bolt,{action:'propose',target:'clinic',item:'none'});act(mira,{action:'sponsor',target:'clinic',item:'none',price:2});
+    asha.inventory.leisure_kit=1;act(asha,{action:'invite',target:'music',item:'none'});act(bolt,{action:'propose',target:'clinic',item:'none'});act(mira,{action:'sponsor',target:'clinic',item:'none',price:2});
     await page.reload();await page.getByRole('heading',{name:'A village with plans'}).waitFor();
     assert.equal(await page.locator('#life-shops article').count(),1);
     assert.match(await page.locator('#coordination-summary').innerText(),/1 shop pickups.*1 funded votes/);assert.equal(await page.locator('#life-orders article').count(),1);
@@ -113,6 +114,20 @@ try {
     assert.match(await page.locator('#life-council').innerText(),/2 public coins/);assert.match(await page.locator('#inspector').innerText(),/PERSONAL PLANS/);
     assert.match(await page.locator('#market-summary').innerText(),/48 coins total/);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     await page.screenshot({path:`${screenshots}/v7-${name}-life.png`,fullPage:true});
+    // V9 jobs, bounded production, wellbeing and funded upkeep visible on both viewports.
+    act(fen,{action:'post_order',target:'square',item:'wood',price:1});
+    const job=app.store.world.community.jobs[0];act(bolt,{action:'claim_job',target:'square',item:'none',offerId:job.id});
+    mira.inventory.meal=5;act(mira,{action:'restock_shop',target:'square',item:'meal',offerId:shop.id});
+    asha.inventory.meal=0;act(asha,{action:'meal_plan',target:'hearth',item:'meal'});
+    await page.reload();await page.getByRole('heading',{name:'Making a life together'}).waitFor();
+    assert.match(await page.locator('#community-jobs').innerText(),/2 wood.*2 coins reserved/s);
+    assert.match(await page.locator('#community-jobs').innerText(),/Reserved by Bolt/);
+    assert.match(await page.locator('#community-plans').innerText(),/Asha.*three carried meals/s);
+    assert.equal(await page.locator('#community-wellbeing article').count(),6);
+    assert.match(await page.locator('#life-council').innerText(),/operating reserve target: 3 coins/);
+    assert.match(await page.locator('#market-summary').innerText(),/48 coins total/);
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await page.screenshot({path:`${screenshots}/v9-${name}-community.png`,fullPage:true});
     await page.getByRole('button',{name:'Owner controls ↗'}).click();
     await page.getByRole('button',{name:'Restart worker & resume saved round'}).waitFor();
     const sameRun=app.store.world.id,sameCalls=app.store.world.calls;

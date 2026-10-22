@@ -1,7 +1,8 @@
+import { COMMUNITY_VERSION, hasCommunity, activity } from './community.js';
 import { COORDINATION_VERSION, openingStock } from './coordination.js';
 // world-v7 only. Standing consent, stocks, budgets and social commitments are saved physics.
 export const LIFE_VERSION = 'world-v7';
-export const hasLife = w => [LIFE_VERSION,COORDINATION_VERSION].includes(w.version) && w.life?.version === 1;
+export const hasLife = w => [LIFE_VERSION,COORDINATION_VERSION,COMMUNITY_VERSION].includes(w.version) && w.life?.version === 1;
 export const HOBBIES = ['music', 'games', 'walking'];
 export const CIVIC = {
   clinic: { name: 'Community clinic', site: 'shelter', benefit: 'Fed residents can recover health; care deliveries restore 12 instead of 8 health.' },
@@ -74,6 +75,7 @@ export function expireLife(w, emit) {
     emit(person(w,o.buyerId), `Standing order #${o.id} expired; unspent deposit returned.`, 'order_closed', {orderId:o.id});
   }
   for (const i of [...l.invitations]) if (i.expiresAt <= w.tick) {
+    if(hasCommunity(w)&&i.kitReserved)person(w,i.hostId).inventory.leisure_kit++;
     l.stats.invitationsMissed++; l.invitations=l.invitations.filter(x=>x.id!==i.id);
     emit(person(w,i.hostId), `Invitation #${i.id} ended without a shared activity.`, 'invitation_missed', { invitationId:i.id });
   }
@@ -98,7 +100,7 @@ function leisure(w,a,interest) {
   if (hour===p.preferredHour) gain+=5;
   if(civicActive(w,'garden'))gain+=5;
   if(a.inventory.leisure_kit){a.inventory.leisure_kit--;gain+=8;w.life.stats.kitsUsed++;}
-  a.satisfaction=Math.min(100,a.satisfaction+gain);a.energy=Math.min(100,a.energy+3);
+  if(hasCommunity(w))activity(w,a,interest,{enjoyment:gain});else a.satisfaction=Math.min(100,a.satisfaction+gain);a.energy=Math.min(100,a.energy+3);
   p.lastLeisureAt=w.tick;p.leisureCount++;w.life.stats.hobbiesEnjoyed++;
   return gain;
 }
@@ -153,11 +155,13 @@ export function completeLifeAction(w,a,t) {
   }
   if(t.action==='hobby') {
     if(!readyLeisure(w,a))return fail('leave four hours between hobbies or shared activities.');
-    const gain=leisure(w,a,target);return{kind:'hobby',text:`enjoyed ${target} (+${gain} satisfaction before the cap).`,extra:{interest:target}};
+    const gain=leisure(w,a,target);return{kind:'hobby',text:`enjoyed ${target} (+${gain} ${hasCommunity(w)?'base enjoyment before repetition/cap':'satisfaction before the cap'}).`,extra:{interest:target}};
   }
   if(t.action==='invite') {
     if(l.invitations.some(i=>i.hostId===a.id))return fail('one open invitation per host.');
-    const i={id:l.nextId++,hostId:a.id,host:a.name,interest:target,site:'square',startsAt:w.tick+12,expiresAt:w.tick+48,declinedBy:[]};
+    if(hasCommunity(w)&&!a.inventory.leisure_kit)return fail('a prepared invitation needs one leisure kit; unused kits return on expiry.');
+    if(hasCommunity(w)){a.inventory.leisure_kit--;w.community.stats.preparedEvents++;}
+    const i={...(hasCommunity(w)?{kitReserved:1}:{}),id:l.nextId++,hostId:a.id,host:a.name,interest:target,site:'square',startsAt:w.tick+12,expiresAt:w.tick+48,declinedBy:[]};
     l.invitations.push(i);return{kind:'invitation',text:`invited a neighbor to ${target} at the green in one hour; three-hour activity window.`,extra:{invitationId:i.id,interest:target,startsAt:i.startsAt}};
   }
   if(['accept_invite','decline_invite'].includes(t.action)) {
@@ -166,7 +170,7 @@ export function completeLifeAction(w,a,t) {
     if(t.action==='decline_invite'){i.declinedBy.push(a.id);l.stats.invitationsDeclined++;return{kind:'invitation_declined',text:`declined ${i.host}'s invitation.`,extra:{invitationId:id,targetId:i.hostId}};}
     const host=person(w,i.hostId);
     if(w.tick<i.startsAt||Math.abs(host.x-a.x)+Math.abs(host.y-a.y)>2||!readyLeisure(w,a)||!readyLeisure(w,host))return fail('wait for the scheduled window, both residents at the green and four hours since their last activity.');
-    leisure(w,a,i.interest);leisure(w,host,i.interest);a.satisfaction=Math.min(100,a.satisfaction+5);host.satisfaction=Math.min(100,host.satisfaction+5);
+    leisure(w,a,i.interest);leisure(w,host,i.interest);if(hasCommunity(w)){activity(w,a,'shared_event',{connection:8,enjoyment:8,partner:host.id});activity(w,host,'shared_event',{connection:8,enjoyment:8,partner:a.id});w.life.stats.kitsUsed+=i.kitReserved||0;w.community.stats.sharedExperiences++;}else{a.satisfaction=Math.min(100,a.satisfaction+5);host.satisfaction=Math.min(100,host.satisfaction+5);}
     l.invitations=l.invitations.filter(x=>x.id!==id);l.stats.invitationsAccepted++;
     return{kind:'shared_activity',text:`joined ${host.name} for ${i.interest} at the green.`,extra:{invitationId:id,targetId:host.id,interest:i.interest}};
   }

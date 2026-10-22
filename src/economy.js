@@ -1,9 +1,10 @@
+import { COMMUNITY_VERSION, hasCommunity } from './community.js';
 import { COORDINATION_VERSION } from './coordination.js';
 import { LIFE_VERSION, hasLife, lifeMetrics } from './life.js';
 import { hasVillage, VILLAGE_VERSION, VILLAGE_ITEMS } from './village.js';
 // The engine owns every coin, escrow item and outcome. No model text executes here.
 export const ECONOMY_VERSION = 'world-v5';
-export const hasEconomy = w => [ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION].includes(w.version) && w.economy?.version === 1;
+export const hasEconomy = w => [ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION,COMMUNITY_VERSION].includes(w.version) && w.economy?.version === 1;
 export const MARKET_ACTIONS = ['craft', 'offer', 'buy', 'cancel_offer'];
 export const MARKET_ITEMS = ['meal', 'raw', 'wood', 'tool'];
 const ROLES = ['grower', 'woodcutter', 'cook', 'craftsperson', 'grower', 'woodcutter'];
@@ -119,5 +120,5 @@ export function economyMetrics(w) {
   return { trades: w.economy.stats.trades, coinsTraded: w.economy.stats.coinsTraded,
     toolsCrafted: w.economy.stats.toolsCrafted, toolsUsed: w.economy.stats.toolsUsed,
     offersPosted: w.economy.stats.offersPosted, activeOffers: w.economy.offers.length,
-    coins: w.agents.reduce((n, a) => n + a.coins, 0) + (hasVillage(w) ? w.village.requests.reduce((n,r) => n+r.price,0) : 0) + (hasLife(w) ? lifeMetrics(w).orderCoinsReserved + lifeMetrics(w).publicCoins : 0) };
+    coins: w.agents.reduce((n, a) => n + a.coins, 0) + (hasVillage(w) ? w.village.requests.reduce((n,r) => n+r.price,0) : 0) + (hasLife(w) ? lifeMetrics(w).orderCoinsReserved + lifeMetrics(w).publicCoins : 0) + (hasCommunity(w) ? w.community.jobs.reduce((n,j)=>n+j.escrow,0) : 0) };
 }

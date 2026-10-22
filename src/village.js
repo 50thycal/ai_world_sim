@@ -1,8 +1,9 @@
+import { COMMUNITY_VERSION, hasCommunity, activity } from './community.js';
 import { COORDINATION_VERSION, hasCoordination } from './coordination.js';
 import { LIFE_VERSION } from './life.js';
 // Versioned cooperative economy. All transfers and benefits are physical engine outcomes.
 export const VILLAGE_VERSION = 'world-v6';
-export const hasVillage = w => [VILLAGE_VERSION,LIFE_VERSION,COORDINATION_VERSION].includes(w.version) && w.village?.version === 1;
+export const hasVillage = w => [VILLAGE_VERSION,LIFE_VERSION,COORDINATION_VERSION,COMMUNITY_VERSION].includes(w.version) && w.village?.version === 1;
 export const VILLAGE_ITEMS = ['bed', 'furnishing'];
 export const VILLAGE_ACTIONS = ['request', 'request_cooking', 'fulfill', 'fulfill_cooking', 'cancel_request',
   'contribute', 'build', 'request_work', 'fulfill_work', 'craft_bed', 'craft_furnishing', 'furnish', 'socialize', 'host_meal', 'attend'];
@@ -158,25 +159,25 @@ export function completeVillageAction(w, a, t, yieldMeals) {
   }
   if (t.action === 'furnish') {
     if (a.home[t.item] || !a.inventory[t.item]) return fail('home already has this improvement or no carried item.');
-    a.inventory[t.item]--; a.home[t.item] = true; a.satisfaction = Math.min(100, a.satisfaction + 15); v.stats.homesImproved++;
+    a.inventory[t.item]--; a.home[t.item] = true; if(!hasCommunity(w))a.satisfaction = Math.min(100, a.satisfaction + 15); v.stats.homesImproved++;
     return { kind: 'home_improved', text: `installed a ${t.item} at the lodge.`, extra: { item: t.item } };
   }
   if (t.action === 'socialize') {
     const partners = w.agents.filter(b => b.id !== a.id && Math.abs(b.x-a.x)+Math.abs(b.y-a.y) <= 2);
-    a.satisfaction = Math.min(100, a.satisfaction + (partners.length ? 15 : 5)); a.energy = Math.min(100, a.energy + 3); v.stats.socialVisits++;
+    if(hasCommunity(w))activity(w,a,'socialize',{connection:partners.length?6:1,enjoyment:3});else a.satisfaction = Math.min(100, a.satisfaction + (partners.length ? 15 : 5)); a.energy = Math.min(100, a.energy + 3); v.stats.socialVisits++;
     if (t.message) { a.lastMessage = t.message; a.lastMessageTick = w.tick; a.stats.talked++; }
     return { kind: 'socialize', text: `spent leisure time at the green${partners.length ? ' with ' + partners.map(b => b.name).join(', ') : ''}${t.message ? ': “' + t.message + '”' : '.'}`, extra: { participants: partners.map(b => b.id), spoken: Boolean(t.message) } };
   }
   if (t.action === 'host_meal') {
     if (!a.inventory.meal || v.gatherings.some(g => g.hostId === a.id)) return fail('needs one meal and no existing gathering.');
     a.inventory.meal--; const g = { id: v.nextId++, hostId: a.id, host: a.name, postedAt: w.tick, expiresAt: w.tick + 24 };
-    v.gatherings.push(g); a.satisfaction = Math.min(100, a.satisfaction + 10);
+    v.gatherings.push(g); if(hasCommunity(w))activity(w,a,'host_meal',{enjoyment:4});else a.satisfaction = Math.min(100, a.satisfaction + 10);
     return { kind: 'gathering_posted', text: `invited a neighbor to shared meal #${g.id} at the green for two hours.`, extra: { ...g } };
   }
   if (t.action === 'attend') {
     const g = v.gatherings.find(g => g.id === t.offerId && g.hostId === t.customerId && g.hostId !== a.id);
     if (!g || a.hunger < 40) return fail('shared meal ended or hunger is below 40.');
-    a.hunger = Math.max(0, a.hunger - 40); a.stats.ate++; a.satisfaction = Math.min(100, a.satisfaction + 20); v.stats.sharedMeals++;
+    a.hunger = Math.max(0, a.hunger - 40); a.stats.ate++; if(hasCommunity(w))activity(w,a,'shared_meal',{connection:8,enjoyment:8});else a.satisfaction = Math.min(100, a.satisfaction + 20); v.stats.sharedMeals++;
     v.gatherings = v.gatherings.filter(x => x.id !== g.id);
     return { kind: 'shared_meal', text: `accepted ${g.host}'s shared meal at the green.`, extra: { targetId: g.hostId, offerId: g.id, item: 'meal' } };
   }

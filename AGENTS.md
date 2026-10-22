@@ -87,3 +87,12 @@ start/resume/reset a run just to inspect it. Model dialogue and stated reasons a
 - Check actual data-filesystem space, not service disk metrics alone. Low/unknown space pauses before
   work; raw stderr is never published. Only fixed startup signatures may classify a failure; unknown
   exits still pause, and an observed OOM always overrides retryable categories. See STORAGE_RECOVERY.
+
+- Community livelihoods are opt-in `world-v9` (`community:true`), with `community-facts-v1`.
+  Never migrate older worlds/queued batches. Bounded production plans require explicit consent;
+  record internal physical steps separately from model decisions and stop at saved limits/failures.
+- Job wages come from buyer/public escrow; claims alone never pay. Keep all job escrow in 48 coins,
+  physical delivery/upkeep, race-safe claims and once-only refunds. Public reserve targets are advice.
+- V9 satisfaction is mean comfort/connection/enjoyment; health remains separate. Shared-event kits
+  reserve/refund/consume once; private shared-experience counts are witnessed events, not trust.
+  Keep other residents' plans, wellbeing notebooks, inventories and wallets out of model inputs.
