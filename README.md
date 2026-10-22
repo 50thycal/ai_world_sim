@@ -5,9 +5,21 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.8.0 / coordinated village v8
+## Current release: app v0.9.0 / community village v9
 
-Fresh owner batches default to five ten-day v8 villages, hourly reviews and Fast execution. V8 adds
+Fresh owner batches default to five ten-day v9 villages with hourly reviews and Fast pace.
+Residents can voluntarily follow bounded household/shop production plans, claim coin-backed
+supply and upkeep jobs, and build distinct comfort, connection and enjoyment through homes,
+varied activities and prepared shared events. The dashboard shows plans, jobs and wellbeing
+separately and retains dark mode. Renewable food and fuel still require work; starvation remains
+possible. Existing saved villages and queued batches keep their original rules.
+
+See [v9 mechanics, conservation and evaluation guidance](docs/COMMUNITY_VILLAGE.md).
+New mechanics are locally tested; live adoption and economic improvement require fresh runs.
+
+## Earlier release: app v0.8.0 / coordinated village v8
+
+The v8 treatment uses five ten-day villages, hourly reviews and Fast execution. V8 adds
 stocked shop openings, one-item shop pickup, combined council pledges/votes, clearer public work plans,
 optional action examples and shorter model inputs. Specialist cooking produces four meals versus two
 for other residents; free cooking barter splits output evenly. Existing worlds keep their rules.
