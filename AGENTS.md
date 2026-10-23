@@ -96,3 +96,12 @@ start/resume/reset a run just to inspect it. Model dialogue and stated reasons a
 - V9 satisfaction is mean comfort/connection/enjoyment; health remains separate. Shared-event kits
   reserve/refund/consume once; private shared-experience counts are witnessed events, not trust.
   Keep other residents' plans, wellbeing notebooks, inventories and wallets out of model inputs.
+
+- Actionable village v10 is opt-in `agency:true`, with `actionable-facts-v1`. Keep v9 worlds,
+  queues, schemas, inputs and physics unchanged. Hobby examples always use item none; kits are
+  consumed by the engine, never by silent output correction. Gain previews use shared engine math.
+- V10 bed/furnishing purchase orders reserve/deliver ONE item; earlier goods still TWO. Need/benefit
+  facts are private to their owner; public demand must come from explicit posted orders.
+- V10 upkeep plans require explicit consent, ordinary gather/travel/wait/maintenance, saved bounds,
+  and interruption/refund rules. Preserve exact 48 coins and once-only refund/payment; record plan
+  steps separately from model decisions. No automatic survival behavior or extra model calls.

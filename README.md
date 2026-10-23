@@ -5,9 +5,21 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.9.0 / community village v9
+## Current release: app v0.10.0 / actionable village v10
 
-Fresh owner batches default to five ten-day v9 villages with hourly reviews and Fast pace.
+Fresh owner batches default to five ten-day v10 villages with hourly reviews and Fast pace.
+Exact hobby choices show estimated benefits and kit use; blocked actions provide specific feedback.
+Own needs explain useful purchases, including one-unit bed/furnishing orders. Voluntary upkeep plans
+reserve existing public wages, gather wood, travel, wait and maintain a service. They stay bounded
+and interruptible. No automatic purchases, forced jobs or new coins are introduced. Dark mode remains.
+
+See [v10 rules, evidence and evaluation guidance](docs/ACTIONABLE_VILLAGE.md).
+Older saved worlds and queued batches retain their original rules. Local checks do not establish
+live-model adoption or economic improvement; create a fresh v10 batch to evaluate that.
+
+## Earlier release: app v0.9.0 / community village v9
+
+The v9 treatment uses five ten-day villages with hourly reviews and Fast pace.
 Residents can voluntarily follow bounded household/shop production plans, claim coin-backed
 supply and upkeep jobs, and build distinct comfort, connection and enjoyment through homes,
 varied activities and prepared shared events. The dashboard shows plans, jobs and wellbeing
