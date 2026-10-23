@@ -1,8 +1,10 @@
+import { hobbyBase } from './agency.js';
+import { AGENCY_VERSION, hasAgency } from './treatments.js';
 import { COMMUNITY_VERSION, hasCommunity, activity } from './community.js';
 import { COORDINATION_VERSION, openingStock } from './coordination.js';
 // world-v7 only. Standing consent, stocks, budgets and social commitments are saved physics.
 export const LIFE_VERSION = 'world-v7';
-export const hasLife = w => [LIFE_VERSION,COORDINATION_VERSION,COMMUNITY_VERSION].includes(w.version) && w.life?.version === 1;
+export const hasLife = w => [LIFE_VERSION,COORDINATION_VERSION,COMMUNITY_VERSION,AGENCY_VERSION].includes(w.version) && w.life?.version === 1;
 export const HOBBIES = ['music', 'games', 'walking'];
 export const CIVIC = {
   clinic: { name: 'Community clinic', site: 'shelter', benefit: 'Fed residents can recover health; care deliveries restore 12 instead of 8 health.' },
@@ -99,6 +101,7 @@ function leisure(w,a,interest) {
   let gain=preferred?12:8;
   if (hour===p.preferredHour) gain+=5;
   if(civicActive(w,'garden'))gain+=5;
+  if(hasAgency(w))gain=hobbyBase(w,a,interest)-(a.inventory.leisure_kit?8:0);
   if(a.inventory.leisure_kit){a.inventory.leisure_kit--;gain+=8;w.life.stats.kitsUsed++;}
   if(hasCommunity(w))activity(w,a,interest,{enjoyment:gain});else a.satisfaction=Math.min(100,a.satisfaction+gain);a.energy=Math.min(100,a.energy+3);
   p.lastLeisureAt=w.tick;p.leisureCount++;w.life.stats.hobbiesEnjoyed++;
