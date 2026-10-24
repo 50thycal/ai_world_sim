@@ -5,7 +5,22 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.10.0 / actionable village v10
+## Current release: app v0.11.0 / goals and resilient work v11
+
+Fresh owner batches default to five ten-day v11 villages, hourly reviews and Fast pace.
+Residents can keep a private 24-hour goal while handling food and rest. Balanced choices explain
+longer-term home/project benefits alongside leisure. Consented production plans can pause for
+personal needs and retry limited renewable shortages within their original deadlines.
+
+The separately selectable v12 experiment adds announced, supplied shared events: residents can
+hire a supplier, reserve real meals or a leisure kit, and earn an existing guest's ticket coins
+only after both participate. This option starts unchecked so its effects can be tested separately.
+Dark mode, exact 48-coin conservation and preserved older runs remain.
+
+See [rules, v10 findings and evaluation plan](docs/PLANNING_VILLAGE.md). Local checks establish
+engine behavior, not spontaneous model adoption; evaluate a fresh v11 batch before a v12 batch.
+
+## Earlier release: app v0.10.0 / actionable village v10
 
 Fresh owner batches default to five ten-day v10 villages with hourly reviews and Fast pace.
 Exact hobby choices show estimated benefits and kit use; blocked actions provide specific feedback.

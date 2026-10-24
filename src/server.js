@@ -157,8 +157,9 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
         case '/api/admin/new':
           if (runner.busy || store.world.running) throw new Error('Pause and wait for the current decision first');
           if (!['demo', 'chatgpt'].includes(b.mode)) throw new Error('Choose demo or chatgpt');
-          if (!Object.hasOwn(SCENARIOS, b.scenario ?? (b.economy || b.village || b.life || b.coordination || b.community || b.agency ? 'sustainable' : 'plenty'))) throw new Error('Choose a known scenario');
+          if (!Object.hasOwn(SCENARIOS, b.scenario ?? (b.economy || b.village || b.life || b.coordination || b.community || b.agency || b.planning || b.sharedEvents ? 'sustainable' : 'plenty'))) throw new Error('Choose a known scenario');
           if (b.economy !== undefined && typeof b.economy !== 'boolean') throw new Error('Choose whether to enable the village economy');
+          if(b.planning!==undefined&&typeof b.planning!=='boolean'||b.sharedEvents!==undefined&&typeof b.sharedEvents!=='boolean')throw new Error('Choose whether to enable planning/shared events');
           if (b.agency !== undefined && typeof b.agency !== 'boolean') throw new Error('Choose whether to enable actionable choices');
           if (b.community !== undefined && typeof b.community !== 'boolean') throw new Error('Choose whether to enable community livelihoods');
           if (b.coordination !== undefined && typeof b.coordination !== 'boolean') throw new Error('Choose whether to enable coordinated village life');
@@ -172,7 +173,7 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
             const models = await codex.models(); if (!models.some(m => m.id === b.model)) throw new Error('Choose an available model');
           }
           if (runner.busy || store.world.running) throw new Error('Pause and wait for the current decision first');
-          batches.create(b.mode, b.mode === 'chatgpt' ? b.model : null, { scenario: b.scenario ?? (b.economy || b.village || b.life || b.coordination || b.community || b.agency ? 'sustainable' : 'plenty'), economy: b.economy ?? false, village: b.village ?? false, life: b.life ?? false, coordination: b.coordination ?? false, community: b.community ?? false, agency: b.agency ?? false, reviewHours: b.reviewHours ?? 1, pace: b.pace ?? 'fast', personas: b.personas === true, days: b.days ?? DEFAULT_DAYS, socialStart: b.socialStart ?? true }, b.runCount ?? DEFAULT_RUNS);
+          batches.create(b.mode, b.mode === 'chatgpt' ? b.model : null, { scenario: b.scenario ?? (b.economy || b.village || b.life || b.coordination || b.community || b.agency || b.planning || b.sharedEvents ? 'sustainable' : 'plenty'), economy: b.economy ?? false, village: b.village ?? false, life: b.life ?? false, coordination: b.coordination ?? false, community: b.community ?? false, agency: b.agency ?? false, planning: b.planning ?? false, sharedEvents: b.sharedEvents ?? false, reviewHours: b.reviewHours ?? 1, pace: b.pace ?? 'fast', personas: b.personas === true, days: b.days ?? DEFAULT_DAYS, socialStart: b.socialStart ?? true }, b.runCount ?? DEFAULT_RUNS);
           return json(res, 200, snapshot());
         default: return json(res, 404, { error: 'Not found' });
       }

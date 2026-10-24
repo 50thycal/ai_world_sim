@@ -49,6 +49,8 @@ try {
     assert.equal(await page.getByLabel('Separate runs').inputValue(), '5');
     assert.equal(await page.getByLabel('Requests, projects, homes & gatherings (v6)').isChecked(),true);
     assert.equal(await page.getByLabel('Businesses, hobbies & council (v7)').isChecked(),true);
+    assert.equal(await page.getByLabel('Goals & resilient work (v11)').isChecked(),true);
+    assert.equal(await page.getByLabel('Shared-event supply loop (v12 · separate experiment)').isChecked(),false);
     assert.equal(await page.getByLabel('Useful choices & upkeep plans (v10)').isChecked(),true);
     assert.equal(await page.getByLabel('Plans, paid jobs & varied wellbeing (v9)').isChecked(),true);
     assert.equal(await page.getByLabel('Clearer coordination & trade benefits (v8)').isChecked(),true);
@@ -62,7 +64,7 @@ try {
     await page.getByRole('button', { name: 'Create paused batch' }).click();
     await page.getByText('Batch ready. Press Play village / batch to begin.', { exact: true }).waitFor();
     assert.equal(app.store.world.scenario.id, 'sustainable');
-    assert.equal(app.store.world.version, 'world-v10');
+    assert.equal(app.store.world.version, 'world-v11');
     assert.equal(app.store.world.execution.pace,'fast');
     await page.getByRole('button', { name: 'Close owner controls' }).click();
     await page.getByRole('heading', { name: 'The village market' }).waitFor();
@@ -135,7 +137,11 @@ try {
     act(mira,{action:'hobby',target:'music',item:'leisure_kit'});
     await page.reload();await page.locator('#agency-feedback').getByText(/Use item none/).waitFor();
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-    await page.screenshot({path:`${screenshots}/v10-${name}-choices.png`,fullPage:true});
+    act(mira,{action:'set_goal',target:'stove',item:'none'});
+    await page.reload();await page.getByRole('heading',{name:'Making tomorrow better'}).waitFor();
+    assert.match(await page.locator('#planning-goal').innerText(),/stove/);
+    assert.equal(await page.locator('#shared-events-section').isHidden(),true);
+    await page.screenshot({path:`${screenshots}/v11-${name}-planning.png`,fullPage:true});
     await page.getByRole('button',{name:'Owner controls ↗'}).click();
     await page.getByRole('button',{name:'Restart worker & resume saved round'}).waitFor();
     const sameRun=app.store.world.id,sameCalls=app.store.world.calls;
@@ -143,6 +149,26 @@ try {
     await page.getByText('Done.',{exact:true}).waitFor();assert.equal(app.store.world.execution.pace,'watch');assert.equal(app.store.world.id,sameRun);assert.equal(app.store.world.calls,sameCalls);
     await page.getByLabel('Execution speed').selectOption('fast');await page.getByRole('button',{name:'Apply speed to paused batch'}).click();await page.getByText('Done.',{exact:true}).waitFor();assert.equal(app.store.world.execution.pace,'fast');
     await page.getByRole('button',{name:'Close owner controls'}).click();
+    app.batches.create('demo',null,{sharedEvents:true,days:1},1);
+    for(const resident of app.store.world.agents){resident.x=8;resident.y=12;}
+    const [host,supplier,guest]=app.store.world.agents;
+    supplier.inventory.wood=2;
+    act(host,{action:'host_event',target:'music',item:'leisure_kit',price:1});
+    act(host,{action:'post_order',target:'square',item:'leisure_kit',price:1});
+    const supply=app.store.world.community.jobs[0];
+    act(supplier,{action:'claim_job',target:'square',item:'none',offerId:supply.id});
+    act(supplier,{action:'craft_kit',target:'square',item:'leisure_kit'});act(supplier,{action:'craft_kit',target:'square',item:'leisure_kit'});
+    act(supplier,{action:'complete_job',target:host.id,item:'leisure_kit',offerId:supply.id});
+    const shared=app.store.world.planning.sharedEvents.entries[0];act(host,{action:'prepare_event',target:'square',item:'leisure_kit',offerId:shared.id});
+    await page.reload();await page.getByRole('heading',{name:'Gathering for a reason'}).waitFor();
+    assert.match(await page.locator('#shared-events-board').innerText(),/prepared/);
+    assert.match(await page.locator('#shared-events-board').innerText(),/1 coin ticket/);
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await page.screenshot({path:`${screenshots}/v12-${name}-event.png`,fullPage:true});
+    while(app.store.world.tick<shared.startsAt)app.store.save(advance(app.store.world),true);
+    act(guest,{action:'join_event',target:host.id,item:'none',price:1,offerId:shared.id});
+    await page.reload();await page.locator('#shared-events-summary').getByText(/1 held/).waitFor();
+    assert.match(await page.locator('#market-summary').innerText(),/48 coins total/);
     // A real five-run scripted queue populates comparison results and archival inspection.
     app.batches.create('demo',null,{village:true,days:1,socialStart:false});app.batches.play();
     while(app.batches.batch.status==='running'){await app.runner.step();app.batches.advance();}
