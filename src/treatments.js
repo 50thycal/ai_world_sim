@@ -1,4 +1,11 @@
 // Standalone constants keep version checks free of simulation-module import cycles.
 export const AGENCY_VERSION = 'world-v10';
 export const AGENCY_INPUT = 'actionable-facts-v1';
-export const hasAgency = w => w.version === AGENCY_VERSION && w.agency?.version === 1;
+export const hasAgency = w => [AGENCY_VERSION,PLANNING_VERSION,EVENT_VERSION].includes(w.version) && w.agency?.version === 1;
+
+export const PLANNING_VERSION='world-v11';
+export const EVENT_VERSION='world-v12';
+export const PLANNING_INPUT='planning-facts-v1';
+export const EVENT_INPUT='planning-events-facts-v1';
+export const hasPlanning=w=>[PLANNING_VERSION,EVENT_VERSION].includes(w.version)&&w.planning?.version===1;
+export const hasEvents=w=>w.version===EVENT_VERSION&&w.planning?.sharedEvents?.version===1;

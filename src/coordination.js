@@ -1,9 +1,9 @@
-import { AGENCY_VERSION } from './treatments.js';
+import { AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION } from './treatments.js';
 import { COMMUNITY_VERSION } from './community.js';
 // A fresh treatment. Saved v4-v7 worlds never receive these rules or condensed observations.
 export const COORDINATION_VERSION = 'world-v8';
 export const COORDINATED_INPUT = 'coordinated-facts-v1';
-export const hasCoordination = w => [COORDINATION_VERSION,COMMUNITY_VERSION,AGENCY_VERSION].includes(w.version) && w.coordination?.version === 1;
+export const hasCoordination = w => [COORDINATION_VERSION,COMMUNITY_VERSION,AGENCY_VERSION,PLANNING_VERSION,EVENT_VERSION].includes(w.version) && w.coordination?.version === 1;
 export const COORDINATION_ACTIONS = ['shop_buy', 'sponsor'];
 export function addCoordination(w) {
   w.coordination = { version: 1, stats: { shopPurchases: 0, sponsoredVotes: 0, openingStock: 0 } };

@@ -1,3 +1,22 @@
+# v0.11.0 goals, resilient work and optional event supply loop — 2026-10-24
+
+- All 192 local tests and syntax checks pass. New deterministic tests cover private daily goals,
+  observed completion versus contribution, balanced exact project examples, physical-plan pause and
+  explicit resumption, limited renewable shortage waits, original expiry and once-only wage refunds.
+- Event tests exercise a real producer/host/guest supply chain, exact ticket transfer, consumption
+  of one reserved kit or two meals, competing guests, failed attendance, cancellation/expiry returns,
+  food ownership, private observations and exact 48-coin conservation on every tested tick.
+- SQLite reload preserves goals, suspended work and prepared supplies while restarting paused.
+  Two fake-adapter treatment checks retain exact observations/schemas and six calls per hourly round.
+  Permanent fingerprints now cover v4–v10, including v10 inputs/physics captured from main 40cd246.
+- Disposable browser acceptance passes at desktop 1440×1000 and phone 390×844: fresh v11 defaults,
+  separate unchecked v12 option, goal/event boards, a producer-to-host delivery and paid guest event,
+  48-coin total, legacy batch/archive controls, dark/light preference, no page errors or overflow.
+  Viewport emulation is not a physical-phone test. No live inference is used by browser acceptance.
+- No production data, credentials, runs or queued versions were changed. Deployment and live-model
+  adoption remain to be tested. First evaluate five fresh v11 ten-day hourly/Fast runs, then a
+  separate v12 batch; see [rules and evaluation plan](PLANNING_VILLAGE.md).
+
 # v0.8.1 storage and startup recovery — 2026-10-21
 
 - All 150 local tests and syntax checks pass. Final focused storage/diagnostic checks also pass

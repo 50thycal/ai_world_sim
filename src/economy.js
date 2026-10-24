@@ -1,11 +1,11 @@
-import { AGENCY_VERSION } from './treatments.js';
+import { AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION } from './treatments.js';
 import { COMMUNITY_VERSION, hasCommunity } from './community.js';
 import { COORDINATION_VERSION } from './coordination.js';
 import { LIFE_VERSION, hasLife, lifeMetrics } from './life.js';
 import { hasVillage, VILLAGE_VERSION, VILLAGE_ITEMS } from './village.js';
 // The engine owns every coin, escrow item and outcome. No model text executes here.
 export const ECONOMY_VERSION = 'world-v5';
-export const hasEconomy = w => [ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION,COMMUNITY_VERSION,AGENCY_VERSION].includes(w.version) && w.economy?.version === 1;
+export const hasEconomy = w => [ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION,COMMUNITY_VERSION,AGENCY_VERSION,PLANNING_VERSION,EVENT_VERSION].includes(w.version) && w.economy?.version === 1;
 export const MARKET_ACTIONS = ['craft', 'offer', 'buy', 'cancel_offer'];
 export const MARKET_ITEMS = ['meal', 'raw', 'wood', 'tool'];
 const ROLES = ['grower', 'woodcutter', 'cook', 'craftsperson', 'grower', 'woodcutter'];

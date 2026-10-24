@@ -105,3 +105,18 @@ start/resume/reset a run just to inspect it. Model dialogue and stated reasons a
 - V10 upkeep plans require explicit consent, ordinary gather/travel/wait/maintenance, saved bounds,
   and interruption/refund rules. Preserve exact 48 coins and once-only refund/payment; record plan
   steps separately from model decisions. No automatic survival behavior or extra model calls.
+
+- Goals and resilient work are opt-in `world-v11` (`planning:true`), `planning-facts-v1`.
+  Fresh owner UI batches default to v11, five ten-day hourly/Fast runs. Preserve v4–v10 exact
+  schemas, inputs and physical behavior; never migrate existing worlds or queued batches.
+- Goals are private, voluntary 24-hour intentions, not automatic action queues or contributor
+  credit. Home/project guidance must remain balanced with survival, exchange and leisure.
+- Meals/rest/recovery/explicit supply orders pause a consented physical plan; resumption is explicit,
+  with unchanged original deadline/step limits. Renewable depletion can wait at most three times;
+  preserve blocked attempts, ordinary regrowth/work and once-only escrow refunds. No auto-survival.
+- Shared-event supply loops are separate opt-in `world-v12` (`sharedEvents:true`), with
+  `planning-events-facts-v1`; keep the owner toggle unchecked by default. Public announcements
+  disclose intent, not private readiness, bags or wallets. Explicit orders still require coin escrow
+  and physical supplier delivery. Reserve one real kit or two meals; consume only after both present
+  participants meet eligibility, then transfer the guest's exact ticket payment. Refund unused
+  supplies once on cancellation/expiry. Count meal escrow in food ownership; never mint rewards.
