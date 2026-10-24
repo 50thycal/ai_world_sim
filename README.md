@@ -5,7 +5,22 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.11.0 / goals and resilient work v11
+## Current release: app v0.12.0 / living village v13
+
+Fresh batches default to five ten-day hourly/Fast unscored control villages. Cooking reserves its
+fuel, meals keep their age through trade and expire after three days (six with explicit preservation),
+and willing guests can RSVP before a host commits to a bounded shared-event preparation plan.
+Standing meal deliveries have clearer time/freshness benefits. Dark mode remains.
+
+Owner controls separately select a day-four visitor, a competitive score objective, or both.
+Rowan is independently model-controlled, brings recorded food/fuel and zero coins, and increases
+the planned ten-day hourly requests from 1,440 to 1,608. Competitive scores balance time-average
+health/wellbeing with capped terminal wealth; the default control has no points objective.
+
+See [rules, conservation, score formula and evaluation order](docs/LIVING_VILLAGE.md).
+Saved worlds/queues retain their original rules. No live outcomes are claimed from local checks.
+
+## Earlier release: app v0.11.0 / goals and resilient work v11
 
 Fresh owner batches default to five ten-day v11 villages, hourly reviews and Fast pace.
 Residents can keep a private 24-hour goal while handling food and rest. Balanced choices explain

@@ -120,3 +120,24 @@ start/resume/reset a run just to inspect it. Model dialogue and stated reasons a
   and physical supplier delivery. Reserve one real kit or two meals; consume only after both present
   participants meet eligibility, then transfer the guest's exact ticket payment. Refund unused
   supplies once on cancellation/expiry. Count meal escrow in food ownership; never mint rewards.
+
+- Living village is fresh `world-v13` (`living:true`), `living-facts-v1`. Default five ten-day
+  hourly/Fast runs are unscored/no-visitor controls. Save visitor/competitive condition flags on
+  every run/batch; version alone is insufficient for comparison. Preserve v4–v12 fingerprints.
+- Cook fuel/credits are actual task escrow: reserve once, consume on success, refund once on
+  replacement/failure/safety stop. Include reserved wood in conservation. No invented credits.
+- Meal lots retain original age/preservation through every physical transfer and refund. Spoilage
+  records quantities, removes empty offers and cancels under-supplied prepared meal events. Never
+  reset age or resurrect spoiled food. Public commodity expiry is intentional disclosure; private
+  bag freshness stays private. Raw does not spoil; preserving uses real wood/work.
+- Event RSVP is revocable intent, no forced movement/payment. Hosts may explicitly authorize bounded
+  twelve-step/twelve-hour production/preparation/waiting; original safety/deadline rules apply.
+- Visitor is optional, arrives day four before the frozen round, exactly once and restart-safe.
+  Rowan has fresh private state, recorded 2 raw/1 wood/1 meal/zero coins, and uses the same real
+  model/physics. Keep 48 total coins, population-aware rotation/averages and the saved extra request
+  budget (ten-day hourly 1,608 plus 12 retries). No scripted purchases or live inference fallback.
+- Competitive mode is separate and opt-in. Six original residents receive only their own score:
+  30 mean health, 20 mean comfort, 20 mean connection, 10 mean enjoyment, 20 final coins capped at 16,
+  including refundable own escrow. No direct action/trade-count rewards. Spectator scores must
+  not enter other residents' observations. Rowan is unscored; default control has no maximize-score
+  instruction. See LIVING_VILLAGE for comparison limits and required evaluation order.

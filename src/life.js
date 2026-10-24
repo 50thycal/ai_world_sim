@@ -1,10 +1,10 @@
 import { hobbyBase } from './agency.js';
-import { AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION, hasAgency } from './treatments.js';
+import { LIVING_VERSION, hasLiving, AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION, hasAgency } from './treatments.js';
 import { COMMUNITY_VERSION, hasCommunity, activity } from './community.js';
 import { COORDINATION_VERSION, openingStock } from './coordination.js';
 // world-v7 only. Standing consent, stocks, budgets and social commitments are saved physics.
 export const LIFE_VERSION = 'world-v7';
-export const hasLife = w => [LIFE_VERSION,COORDINATION_VERSION,COMMUNITY_VERSION,AGENCY_VERSION,PLANNING_VERSION,EVENT_VERSION].includes(w.version) && w.life?.version === 1;
+export const hasLife = w => [LIFE_VERSION,COORDINATION_VERSION,COMMUNITY_VERSION,AGENCY_VERSION,PLANNING_VERSION,EVENT_VERSION,LIVING_VERSION].includes(w.version) && w.life?.version === 1;
 export const HOBBIES = ['music', 'games', 'walking'];
 export const CIVIC = {
   clinic: { name: 'Community clinic', site: 'shelter', benefit: 'Fed residents can recover health; care deliveries restore 12 instead of 8 health.' },
