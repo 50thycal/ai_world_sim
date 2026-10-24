@@ -12,7 +12,7 @@ test('HTTP owner claim, CSRF, read-only spectators, exports and restart persiste
   const base=`http://127.0.0.1:${app.server.address().port}`;
   const post=(p,b,cookie,origin)=>fetch(base+p,{method:'POST',headers:{'Content-Type':'application/json',...(cookie?{cookie}:{}),...(origin?{origin}:{})},body:JSON.stringify(b)});
   try{
-    const health=await fetch(base+'/health');assert.equal(health.status,200);assert.equal((await health.json()).version,'0.11.0');
+    const health=await fetch(base+'/health');assert.equal(health.status,200);assert.equal((await health.json()).version,'0.12.0');
     assert.equal((await post('/api/admin/run',{})).status,401);
     assert.equal((await fetch(base+'/api/admin/status')).status,401);
     assert.equal((await fetch(base+'/api/admin/diagnostics')).status,401);
@@ -25,7 +25,7 @@ test('HTTP owner claim, CSRF, read-only spectators, exports and restart persiste
     assert.equal((await post('/api/claim',{token:'test-owner-capability'})).status,403);
     assert.equal((await post('/api/admin/step',{},cookie,'https://evil.invalid')).status,403);
     assert.equal((await post('/api/admin/step',{},cookie)).status,200);
-    const state=await (await fetch(base+'/api/state')).json();assert.equal(state.world.agents.length,6);assert.equal(state.world.tick,1);assert.equal(state.world.mode,'demo');assert.equal(state.appVersion,'0.11.0');assert.equal(state.world.version,'world-v4');
+    const state=await (await fetch(base+'/api/state')).json();assert.equal(state.world.agents.length,6);assert.equal(state.world.tick,1);assert.equal(state.world.mode,'demo');assert.equal(state.appVersion,'0.12.0');assert.equal(state.world.version,'world-v4');
     const exported=await (await fetch(base+'/api/admin/export',{headers:{cookie}})).json();assert.equal(exported.format,'ai-world-run-v1');assert.ok(!JSON.stringify(exported).includes('signingKey'));
     const frames=await (await fetch(base+'/api/frames')).json();assert.equal(frames.length,1);
     assert.equal((await (await fetch(base+'/api/frame/'+frames[0].id)).json()).world.tick,1);

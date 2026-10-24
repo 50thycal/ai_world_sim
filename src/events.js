@@ -1,4 +1,4 @@
-import { hasEvents } from './treatments.js';
+import { hasEvents, hasLiving } from './treatments.js';
 import { activity } from './community.js';
 import { hobbyBase } from './agency.js';
 import { planChoice } from './planning.js';
@@ -34,7 +34,7 @@ export function completeEventAction(w,a,t) {
   if(t.action==='host_event') {
     if(board.entries.some(e=>e.hostId===a.id))return fail('one open event per host.');
     const e={id:board.nextId++,hostId:a.id,host:a.name,interest:t.customerId==='square'?'meal':t.customerId,item:t.item,quantity:t.item==='meal'?2:1,reserved:0,price:t.price,status:'announced',announcedAt:w.tick,startsAt:null,expiresAt:w.tick+288};
-    board.entries.push(e);stats.eventsAnnounced++;
+    if(hasLiving(w)){e.rsvpId=null;e.scheduledAt=w.tick+72;}board.entries.push(e);stats.eventsAnnounced++;
     return {kind:'event_announced',text:`announced ${e.interest} for two residents, ticket ${e.price} coins; must obtain and prepare ${e.quantity} ${e.item}.`,extra:{eventId:e.id,item:e.item,quantity:e.quantity,price:e.price}};
   }
   const e=board.entries.find(e=>e.id===t.offerId);if(!e)return fail('the event ended.');
@@ -43,12 +43,14 @@ export function completeEventAction(w,a,t) {
     removeEvent(w,e,true);return {kind:'event_cancelled',text:'cancelled the event; unused supplies returned.',extra:{eventId:e.id,item:e.item,returned:e.reserved}};
   }
   if(t.action==='prepare_event') {
+    if(hasLiving(w)&&!e.rsvpId)return fail('prepare after a willing guest RSVP.');
     if(e.hostId!==a.id||e.status!=='announced'||t.item!==e.item||a.inventory[e.item]<e.quantity)return fail('needs your unprepared event and all listed carried supplies.');
     if(w.tick+12>=e.expiresAt)return fail('too little time remains to open the event.');
-    a.inventory[e.item]-=e.quantity;e.reserved=e.quantity;e.status='prepared';e.startsAt=w.tick+12;e.expiresAt=Math.min(e.expiresAt,w.tick+60);stats.eventsPrepared++;
-    return {kind:'event_prepared',text:`reserved ${e.quantity} ${e.item}; meet at the green in one hour, with a four-hour attendance window.`,extra:{eventId:e.id,item:e.item,reserved:e.reserved,startsAt:e.startsAt,expiresAt:e.expiresAt}};
+    a.inventory[e.item]-=e.quantity;e.reserved=e.quantity;e.status='prepared';e.startsAt=hasLiving(w)?Math.max(w.tick+12,e.scheduledAt):w.tick+12;e.expiresAt=Math.min(e.expiresAt,e.startsAt+48);stats.eventsPrepared++;
+    return {kind:'event_prepared',text:hasLiving(w)?`reserved ${e.quantity} ${e.item}; meet at the green at tick ${e.startsAt}, with a four-hour attendance window.`:`reserved ${e.quantity} ${e.item}; meet at the green in one hour, with a four-hour attendance window.`,extra:{eventId:e.id,item:e.item,reserved:e.reserved,startsAt:e.startsAt,expiresAt:e.expiresAt}};
   }
   if(e.hostId===a.id||t.customerId!==e.hostId||t.item!=='none'||t.price!==e.price||e.status!=='prepared'||w.tick<e.startsAt||a.coins<e.price)return fail('copy a prepared event and its host/ticket price, wait for its window, and carry enough coins.');
+  if(hasLiving(w)&&e.rsvpId!==a.id)return fail('RSVP to this event before joining.');
   const host=person(w,e.hostId);
   if(Math.abs(host.x-8)+Math.abs(host.y-12)>1||Math.abs(a.x-8)+Math.abs(a.y-12)>1||!ready(w,a)||!ready(w,host))return fail('both participants must be at the green and four hours since their last leisure.');
   if(e.reserved!==e.quantity)return fail('event supplies are unavailable.');

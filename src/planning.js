@@ -1,3 +1,4 @@
+import { refundKitchen } from './living.js';
 import { hasPlanning, hasEvents } from './treatments.js';
 
 export const PLANNING_ACTIONS=['set_goal','clear_goal','resume_plan'];
@@ -52,7 +53,7 @@ export function updateGoals(w,emit) {
 export function pausePlan(w,a,reason) {
   if(!a.workPlan||a.workPlan.suspended)return;
   a.workPlan.suspended=true;a.workPlan.pauseReason=reason;
-  if(a.task?.planStep)a.task=null;
+  if(a.task?.planStep){refundKitchen(w,a,a.task);a.task=null;}
   w.planning.stats.plansPaused++;a.pendingPlanPause=true;
 }
 export function retainPlanForChoice(w,a,d) {

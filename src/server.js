@@ -1,3 +1,4 @@
+import { score } from './living.js';
 import { createScheduler, setExecutionPace } from './execution.js';
 import { Batches, DEFAULT_RUNS, validateRunCount } from './batches.js';
 import http from 'node:http';
@@ -52,7 +53,7 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
     return Number(expiry) > Date.now() && equal(signature, sign(expiry));
   };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
-  const snapshot = () => ({ execution: scheduler?.snapshot(), appVersion: APP_VERSION, latestWorldVersion: LATEST_VERSION, world: store.world, metrics: metrics(store.world), places: PLACES, events: store.records(80).filter(e => !['request', 'decision'].includes(e.kind)),
+  const snapshot = () => ({ execution: scheduler?.snapshot(), appVersion: APP_VERSION, latestWorldVersion: LATEST_VERSION, world: store.world, contestScores:store.world.living?.competitive?store.world.agents.map(a=>score(store.world,a)).filter(Boolean):null, metrics: metrics(store.world), places: PLACES, events: store.records(80).filter(e => !['request', 'decision'].includes(e.kind)),
     daySummaries: store.db.prepare("SELECT data FROM records WHERE run=? AND kind='day_summary' ORDER BY id").all(store.world.id).map(r => { const { day, daily, cumulative } = JSON.parse(r.data); return { day, daily, cumulative }; }),
     batch: batches.report(), busy: runner.busy, pendingName: runner.pendingName, retry: runner.retryState });
   async function body(req) {
@@ -77,7 +78,7 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
         if (url.pathname === '/api/frames') return json(res, 200, store.frames());
         if (url.pathname.startsWith('/api/frame/')) {
           const frame = store.frame(Number(url.pathname.split('/').pop()));
-          return json(res, frame ? 200 : 404, frame ? { appVersion: APP_VERSION, latestWorldVersion: LATEST_VERSION, world: frame, metrics: metrics(frame), places: PLACES } : { error: 'Frame not found' });
+          return json(res, frame ? 200 : 404, frame ? { appVersion: APP_VERSION, latestWorldVersion: LATEST_VERSION, world: frame, contestScores:frame.living?.competitive?frame.agents.map(a=>score(frame,a)).filter(Boolean):null, metrics: metrics(frame), places: PLACES } : { error: 'Frame not found' });
         }
         if (url.pathname.startsWith('/api/admin/')) {
           if (!isOwner(req)) return json(res, 401, { error: 'Owner access required' });
@@ -157,8 +158,9 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
         case '/api/admin/new':
           if (runner.busy || store.world.running) throw new Error('Pause and wait for the current decision first');
           if (!['demo', 'chatgpt'].includes(b.mode)) throw new Error('Choose demo or chatgpt');
-          if (!Object.hasOwn(SCENARIOS, b.scenario ?? (b.economy || b.village || b.life || b.coordination || b.community || b.agency || b.planning || b.sharedEvents ? 'sustainable' : 'plenty'))) throw new Error('Choose a known scenario');
+          if (!Object.hasOwn(SCENARIOS, b.scenario ?? (b.economy || b.village || b.life || b.coordination || b.community || b.agency || b.planning || b.sharedEvents || b.living || b.visitor || b.competitive ? 'sustainable' : 'plenty'))) throw new Error('Choose a known scenario');
           if (b.economy !== undefined && typeof b.economy !== 'boolean') throw new Error('Choose whether to enable the village economy');
+          if(['living','visitor','competitive'].some(k=>b[k]!==undefined&&typeof b[k]!=='boolean'))throw new Error('Choose living village, visitor and competitive options');
           if(b.planning!==undefined&&typeof b.planning!=='boolean'||b.sharedEvents!==undefined&&typeof b.sharedEvents!=='boolean')throw new Error('Choose whether to enable planning/shared events');
           if (b.agency !== undefined && typeof b.agency !== 'boolean') throw new Error('Choose whether to enable actionable choices');
           if (b.community !== undefined && typeof b.community !== 'boolean') throw new Error('Choose whether to enable community livelihoods');
@@ -173,7 +175,7 @@ export function createApp({ dataDir = resolve(process.env.DATA_DIR || 'data'), c
             const models = await codex.models(); if (!models.some(m => m.id === b.model)) throw new Error('Choose an available model');
           }
           if (runner.busy || store.world.running) throw new Error('Pause and wait for the current decision first');
-          batches.create(b.mode, b.mode === 'chatgpt' ? b.model : null, { scenario: b.scenario ?? (b.economy || b.village || b.life || b.coordination || b.community || b.agency || b.planning || b.sharedEvents ? 'sustainable' : 'plenty'), economy: b.economy ?? false, village: b.village ?? false, life: b.life ?? false, coordination: b.coordination ?? false, community: b.community ?? false, agency: b.agency ?? false, planning: b.planning ?? false, sharedEvents: b.sharedEvents ?? false, reviewHours: b.reviewHours ?? 1, pace: b.pace ?? 'fast', personas: b.personas === true, days: b.days ?? DEFAULT_DAYS, socialStart: b.socialStart ?? true }, b.runCount ?? DEFAULT_RUNS);
+          batches.create(b.mode, b.mode === 'chatgpt' ? b.model : null, { scenario: b.scenario ?? (b.economy || b.village || b.life || b.coordination || b.community || b.agency || b.planning || b.sharedEvents || b.living || b.visitor || b.competitive ? 'sustainable' : 'plenty'), economy: b.economy ?? false, village: b.village ?? false, life: b.life ?? false, coordination: b.coordination ?? false, community: b.community ?? false, agency: b.agency ?? false, planning: b.planning ?? false, sharedEvents: b.sharedEvents ?? false, living:b.living??false,visitor:b.visitor??false,competitive:b.competitive??false, reviewHours: b.reviewHours ?? 1, pace: b.pace ?? 'fast', personas: b.personas === true, days: b.days ?? DEFAULT_DAYS, socialStart: b.socialStart ?? true }, b.runCount ?? DEFAULT_RUNS);
           return json(res, 200, snapshot());
         default: return json(res, 404, { error: 'Not found' });
       }

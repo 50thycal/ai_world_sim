@@ -1,10 +1,10 @@
-import { AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION } from './treatments.js';
+import { LIVING_VERSION, hasLiving, AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION } from './treatments.js';
 import { COMMUNITY_VERSION, hasCommunity, activity } from './community.js';
 import { COORDINATION_VERSION, hasCoordination } from './coordination.js';
 import { LIFE_VERSION } from './life.js';
 // Versioned cooperative economy. All transfers and benefits are physical engine outcomes.
 export const VILLAGE_VERSION = 'world-v6';
-export const hasVillage = w => [VILLAGE_VERSION,LIFE_VERSION,COORDINATION_VERSION,COMMUNITY_VERSION,AGENCY_VERSION,PLANNING_VERSION,EVENT_VERSION].includes(w.version) && w.village?.version === 1;
+export const hasVillage = w => [VILLAGE_VERSION,LIFE_VERSION,COORDINATION_VERSION,COMMUNITY_VERSION,AGENCY_VERSION,PLANNING_VERSION,EVENT_VERSION,LIVING_VERSION].includes(w.version) && w.village?.version === 1;
 export const VILLAGE_ITEMS = ['bed', 'furnishing'];
 export const VILLAGE_ACTIONS = ['request', 'request_cooking', 'fulfill', 'fulfill_cooking', 'cancel_request',
   'contribute', 'build', 'request_work', 'fulfill_work', 'craft_bed', 'craft_furnishing', 'furnish', 'socialize', 'host_meal', 'attend'];
@@ -25,8 +25,9 @@ export function addVillage(w) {
     a.home = { bed: false, furnishing: false }; a.satisfaction = 65;
   }
 }
-export const cookingWood = w => hasVillage(w) && w.village.stoveCredit ? 0 : 1;
+export const cookingWood = w => hasLiving(w)?(w.living.stoveCredits>0?0:1):hasVillage(w) && w.village.stoveCredit ? 0 : 1;
 export function spendCookingFuel(w) {
+  if(hasLiving(w)){if(w.living.stoveCredits>0){w.living.stoveCredits--;w.village.stats.fuelSaved++;}else if(w.village.projects.stove.completedAt!==null)w.living.stoveCredits++;return;}
   if (!hasVillage(w) || w.village.projects.stove.completedAt === null) return;
   if (w.village.stoveCredit) w.village.stats.fuelSaved++;
   w.village.stoveCredit = !w.village.stoveCredit;
@@ -188,7 +189,7 @@ export function villageMetrics(w) {
   if (!hasVillage(w)) return {};
   return { ...w.village.stats, requestsOpen: w.village.requests.length,
     coinsEscrowed: w.village.requests.reduce((n,r) => n + r.price, 0),
-    averageSatisfaction: Math.round(w.agents.reduce((n,a) => n+a.satisfaction,0)/6),
+    averageSatisfaction: Math.round(w.agents.reduce((n,a) => n+a.satisfaction,0)/(hasLiving(w)?w.agents.length:6)),
     bedsInstalled: w.agents.filter(a => a.home.bed).length, furnishedHomes: w.agents.filter(a => a.home.furnishing).length };
 }
 export function villageObservation(w, a) {

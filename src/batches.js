@@ -13,7 +13,7 @@ export function batchReport(store, b) {
     const w = JSON.parse(row.state), completed = w.tick >= w.maxTicks;
     const failures = store.db.prepare("SELECT count(*) n FROM records WHERE run=? AND kind='failure'").get(id).n;
     return { id, index: w.batch.index, worldVersion: w.version, mode: w.mode, model: w.model,
-      reviewHours:w.reviewHours||1, executionPace:w.execution?.pace||'watch', decisionInputVersion:w.decisionInputVersion||null,
+      experiment:w.living?{condition:w.living.condition,visitor:w.living.visitor.enabled,competitive:w.living.competitive}:null, reviewHours:w.reviewHours||1, executionPace:w.execution?.pace||'watch', decisionInputVersion:w.decisionInputVersion||null,
       status: completed ? 'completed' : w.running ? 'running' : 'paused', tick: w.tick, maxTicks: w.maxTicks,
       calls: w.calls, failures, retriesUsed: w.retriesUsed, pauseReason: w.pauseReason, metrics: metrics(w),
       report: `/api/research/runs/${id}` };

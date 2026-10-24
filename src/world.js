@@ -1,6 +1,7 @@
+import { addLiving, livingObservation, livingProblem, livingAction, syncMeals, expireMeals, reserveKitchen, refundKitchen, settleKitchen, recordScores, livingMetrics, eventPlanStep } from './living.js';
 import { PLANNING_ACTIONS, GOAL_TARGETS, addPlanning, planningProblem, completePlanningAction, updateGoals, pausePlan, retainPlanForChoice, recoverShortage, planningWait, planningObservation, plannedFoodOwned } from './planning.js';
 import { EVENT_ACTIONS, addEvents, eventProblem, completeEventAction, expireEvents, eventObservation } from './events.js';
-import { AGENCY_VERSION, AGENCY_INPUT, hasAgency, PLANNING_VERSION, EVENT_VERSION, PLANNING_INPUT, EVENT_INPUT, hasPlanning, hasEvents } from './treatments.js';
+import { LIVING_VERSION, LIVING_INPUT, hasLiving, AGENCY_VERSION, AGENCY_INPUT, hasAgency, PLANNING_VERSION, EVENT_VERSION, PLANNING_INPUT, EVENT_INPUT, hasPlanning, hasEvents } from './treatments.js';
 import { AGENCY_ACTIONS, addAgency, agencyProblem, completeAgencyAction, nextAgencyStep, agencyPlanInterruption, agencyStepResult, feedback, agencyObservation } from './agency.js';
 import { COMMUNITY_VERSION, COMMUNITY_INPUT, COMMUNITY_ACTIONS, hasCommunity, addCommunity, communityProblem, communitySite, completeCommunityAction, expireCommunity, nextPlanStep, stopPlan, communityTick, communityObservation } from './community.js';
 import { encodeRecord, decodeRecord, diskSpace, requireStorage, storageStatus } from './storage.js';
@@ -18,17 +19,17 @@ import { ECONOMY_VERSION, hasEconomy, addEconomy, MARKET_ACTIONS, economyObserva
   marketPlanProblem, expireOffers, completeMarketAction, economyMetrics, productionWork, gatherYield,
   useTool, cookYield, practice, skillFor, craftCost } from './economy.js';
 
-export const APP_VERSION = '0.11.0';
+export const APP_VERSION = '0.12.0';
 export const GROUNDED_INPUT = 'current-facts-v1';
 export const VERSION = 'world-v4';
-export const LATEST_VERSION = EVENT_VERSION;
+export const LATEST_VERSION = LIVING_VERSION;
 const V3 = 'world-v3';
 const V2 = 'world-v2';
 // v2 and later share hourly decisions; v3 adds scenarios, social actions and behavior records.
-export const hourly = w => [V2, V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION, COMMUNITY_VERSION, AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION].includes(w.version);
-export const isV3 = w => [V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION, COMMUNITY_VERSION, AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION].includes(w.version);
-export const isV4 = w => [VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION, COMMUNITY_VERSION, AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION].includes(w.version);
-export const groundedInput = w => isV4(w) && [GROUNDED_INPUT, COORDINATED_INPUT, COMMUNITY_INPUT, AGENCY_INPUT, PLANNING_INPUT, EVENT_INPUT].includes(w.decisionInputVersion);
+export const hourly = w => [V2, V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION, COMMUNITY_VERSION, AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION, LIVING_VERSION].includes(w.version);
+export const isV3 = w => [V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION, COMMUNITY_VERSION, AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION, LIVING_VERSION].includes(w.version);
+export const isV4 = w => [VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION, COMMUNITY_VERSION, AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION, LIVING_VERSION].includes(w.version);
+export const groundedInput = w => isV4(w) && [GROUNDED_INPUT, COORDINATED_INPUT, COMMUNITY_INPUT, AGENCY_INPUT, PLANNING_INPUT, EVENT_INPUT, LIVING_INPUT].includes(w.decisionInputVersion);
 export const TICKS_PER_DAY = 288;
 export const DEFAULT_DAYS = 10;
 export const MAX_DAYS = 30;
@@ -86,7 +87,8 @@ export const DECISION_SCHEMA_V9 = { ...DECISION_SCHEMA_V8, properties: { ...DECI
 export const DECISION_SCHEMA_V10 = { ...DECISION_SCHEMA_V9, properties: { ...DECISION_SCHEMA_V9.properties, action: { type: 'string', enum: [...DECISION_SCHEMA_V9.properties.action.enum,...AGENCY_ACTIONS] } } };
 export const DECISION_SCHEMA_V11={...DECISION_SCHEMA_V10,properties:{...DECISION_SCHEMA_V10.properties,action:{type:'string',enum:[...DECISION_SCHEMA_V10.properties.action.enum,...PLANNING_ACTIONS]},target:{type:'string',enum:[...DECISION_SCHEMA_V10.properties.target.enum,...GOAL_TARGETS]}}};
 export const DECISION_SCHEMA_V12={...DECISION_SCHEMA_V11,properties:{...DECISION_SCHEMA_V11.properties,action:{type:'string',enum:[...DECISION_SCHEMA_V11.properties.action.enum,...EVENT_ACTIONS]},target:{type:'string',enum:[...DECISION_SCHEMA_V11.properties.target.enum,'shared_event']}}};
-export const decisionSchema = version => version===EVENT_VERSION?DECISION_SCHEMA_V12:version===PLANNING_VERSION?DECISION_SCHEMA_V11: version === AGENCY_VERSION ? DECISION_SCHEMA_V10 : version === COMMUNITY_VERSION ? DECISION_SCHEMA_V9 : version === COORDINATION_VERSION ? DECISION_SCHEMA_V8 : version === LIFE_VERSION ? DECISION_SCHEMA_V7 : version === VILLAGE_VERSION ? DECISION_SCHEMA_V6 : version === ECONOMY_VERSION ? DECISION_SCHEMA_V5
+export const DECISION_SCHEMA_V13={...DECISION_SCHEMA_V12,properties:{...DECISION_SCHEMA_V12.properties,action:{type:'string',enum:[...DECISION_SCHEMA_V12.properties.action.enum,'preserve_meals','rsvp_event','withdraw_rsvp','event_plan']},target:{type:'string',enum:[...DECISION_SCHEMA_V12.properties.target.enum,'v7']}}};
+export const decisionSchema = version => version===LIVING_VERSION?DECISION_SCHEMA_V13: version===EVENT_VERSION?DECISION_SCHEMA_V12:version===PLANNING_VERSION?DECISION_SCHEMA_V11: version === AGENCY_VERSION ? DECISION_SCHEMA_V10 : version === COMMUNITY_VERSION ? DECISION_SCHEMA_V9 : version === COORDINATION_VERSION ? DECISION_SCHEMA_V8 : version === LIFE_VERSION ? DECISION_SCHEMA_V7 : version === VILLAGE_VERSION ? DECISION_SCHEMA_V6 : version === ECONOMY_VERSION ? DECISION_SCHEMA_V5
   : [V3, VERSION].includes(version) ? DECISION_SCHEMA_V3 : DECISION_SCHEMA;
 
 // Experimental conditions. Each run copies its scenario into the world so replays never depend on these constants.
@@ -117,7 +119,11 @@ const bump = (a, key, n = 1) => { if (a.stats) a.stats[key] += n; };
 const itemName = item => item === 'raw' ? 'ingredient' : item;
 export const looks = a => a.hunger >= 80 ? 'starving' : a.hunger >= 55 ? 'hungry' : a.health < 60 ? 'unwell' : a.energy < 25 ? 'exhausted' : 'well';
 
-export function newWorld(mode = 'demo', model = null, { scenario, personas = false, days = DEFAULT_DAYS, socialStart = true, economy = false, village = false, life = false, coordination = false, community = false, agency = false, planning = false, sharedEvents = false, pace, reviewHours = 1 } = {}) {
+export function newWorld(mode = 'demo', model = null, { scenario, personas = false, days = DEFAULT_DAYS, socialStart = true, economy = false, village = false, life = false, coordination = false, community = false, agency = false, planning = false, sharedEvents = false, living = false, visitor = false, competitive = false, pace, reviewHours = 1 } = {}) {
+  if([living,visitor,competitive].some(x=>typeof x!=='boolean'))throw new Error('Choose living village, visitor and competitive options');
+  if(visitor||competitive)living=true;
+  if(visitor&&days<4)throw new Error('Visitor arrives on day four; choose at least four days');
+  if(living)sharedEvents=true;
   if(typeof planning!=='boolean'||typeof sharedEvents!=='boolean')throw new Error('Choose whether to enable planning and shared events');
   if(sharedEvents)planning=true;
   if(planning)agency=true;
@@ -141,10 +147,10 @@ export function newWorld(mode = 'demo', model = null, { scenario, personas = fal
   const s = SCENARIOS[scenario];
   validateDays(days);
   const w = {
-    version: sharedEvents ? EVENT_VERSION : planning ? PLANNING_VERSION : agency ? AGENCY_VERSION : community ? COMMUNITY_VERSION : coordination ? COORDINATION_VERSION : life ? LIFE_VERSION : village ? VILLAGE_VERSION : economy ? ECONOMY_VERSION : VERSION, id: randomUUID(), created: new Date().toISOString(),
+    version: living ? LIVING_VERSION : sharedEvents ? EVENT_VERSION : planning ? PLANNING_VERSION : agency ? AGENCY_VERSION : community ? COMMUNITY_VERSION : coordination ? COORDINATION_VERSION : life ? LIFE_VERSION : village ? VILLAGE_VERSION : economy ? ECONOMY_VERSION : VERSION, id: randomUUID(), created: new Date().toISOString(),
     mode, model, running: false, pauseReason: 'Ready for an owner to start', tick: 0,
     nextDecisionTick: 0, decisionRound: null, skippedTicks: 0,
-    days, socialStart: Boolean(socialStart), decisionInputVersion: sharedEvents ? EVENT_INPUT : planning ? PLANNING_INPUT : agency ? AGENCY_INPUT : community ? COMMUNITY_INPUT : coordination ? COORDINATED_INPUT : GROUNDED_INPUT,
+    days, socialStart: Boolean(socialStart), decisionInputVersion: living ? LIVING_INPUT : sharedEvents ? EVENT_INPUT : planning ? PLANNING_INPUT : agency ? AGENCY_INPUT : community ? COMMUNITY_INPUT : coordination ? COORDINATED_INPUT : GROUNDED_INPUT,
     maxTicks: TICKS_PER_DAY * days, plannedCalls: 144 * days / reviewHours,
     maxCalls: 144 * days / reviewHours + RETRY_LIMIT, recovery: recoveryPolicy(), retriesUsed: 0, calls: 0, inputTokens: 0, outputTokens: 0,
     completedActions: 0, shares: 0, mealsCooked: 0,
@@ -170,12 +176,13 @@ export function newWorld(mode = 'demo', model = null, { scenario, personas = fal
   if (agency) addAgency(w);
   if(planning)addPlanning(w);
   if(sharedEvents)addEvents(w);
+  if(living)addLiving(w,{visitor,competitive});
   if (pace !== undefined) w.execution = { version: 1, pace };
   return w;
 }
 
 export function validateDecision(d, version) {
-  const schema = decisionSchema(version), v5 = [ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION, COMMUNITY_VERSION, AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION].includes(version), v3 = [V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION, COMMUNITY_VERSION, AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION].includes(version);
+  const schema = decisionSchema(version), v5 = [ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION, COMMUNITY_VERSION, AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION, LIVING_VERSION].includes(version), v3 = [V3, VERSION, ECONOMY_VERSION, VILLAGE_VERSION, LIFE_VERSION, COORDINATION_VERSION, COMMUNITY_VERSION, AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION, LIVING_VERSION].includes(version);
   if (!d || typeof d !== 'object' || Object.keys(d).sort().join(',') !== schema.required.toSorted().join(',') ||
       !schema.properties.action.enum.includes(d.action) || !schema.properties.target.enum.includes(d.target) ||
       (v3 && !schema.properties.item.enum.includes(d.item)) ||
@@ -188,10 +195,10 @@ export function validateDecision(d, version) {
 }
 
 // A well-formed but impossible v3 plan is behavior worth recording, not an inference failure.
-function planProblem(a, d) {
+function planProblem(a, d, w) {
   if (d.action === 'gather' && !['orchard', 'forest'].includes(d.target)) return 'nothing grows there to gather';
   if (['give', 'steal'].includes(d.action)) {
-    if (!IDS.includes(d.target) || d.target === a.id) return 'it needs another villager as the target';
+    if (!(hasLiving(w)?w.agents.map(b=>b.id):IDS).includes(d.target) || d.target === a.id) return 'it needs another villager as the target';
     if (d.item === 'none') return 'it needs an item: meal, raw or wood';
   }
   return null;
@@ -271,7 +278,8 @@ export function observation(w, a) {
   const communityInput=hasCommunity(w) ? communityObservation(w,a,finalInput) : finalInput;
   const agencyInput=hasAgency(w)?agencyObservation(w,a,communityInput):communityInput;
   const planned=hasPlanning(w)?planningObservation(w,a,agencyInput):agencyInput;
-  return hasEvents(w)?eventObservation(w,a,planned):planned;
+  const eventsInput=hasEvents(w)?eventObservation(w,a,planned):planned;
+  return hasLiving(w)?livingObservation(w,a,eventsInput):eventsInput;
 }
 
 const DEMO_LINES = ['How is everyone getting on with dinner?', 'The orchard looks thinner than this morning.', 'Anyone need a hand at the hearth?',
@@ -350,32 +358,34 @@ export function demoDecision(w, a) {
 
 export function assign(w, a, decision, planStep = false) {
   const d = validateDecision(decision, w.version);
+  if(hasLiving(w)&&a.task?.action==='cook'&&d.action!=='continue'&&!(d.action==='cook'&&d.target==='hearth'&&d.item==='none'&&d.price===0&&d.offerId===0))refundKitchen(w,a,a.task);
   if(hasAgency(w)&&!planStep)a.lastAttempt=clone(d);
   const required = { cook: 'hearth', share: 'pantry', rest: 'shelter', take: 'pantry' };
   if (hasCommunity(w) && !planStep && d.action !== 'continue' && a.workPlan && !retainPlanForChoice(w,a,d)) { stopPlan(w,a,d.action==='cancel_plan'?'cancelled':'replaced'); if(hasAgency(w)&&a.task?.planStep)a.task=null;else if(a.task)delete a.task.planStep; a.pendingPlanStop = d.action!=='cancel_plan'; }
   if (!planStep) a.lastReason = d.reason;
   if (isV3(w) && !planStep && d.action !== 'continue') a.plans = [...a.plans, { tick: w.tick, action: d.action, target: d.target, item: d.item, reason: d.reason }].slice(-6);
-  const coordinationIssue = (hasEvents(w)?eventProblem(w,a,d):null) || (hasPlanning(w)?planningProblem(w,a,d):null) || (hasAgency(w) ? agencyProblem(w,a,d) : null) || (hasCommunity(w) ? communityProblem(w,a,d) : null) || (hasCoordination(w) ? coordinationProblem(w,a,d) : null);
+  const coordinationIssue = (hasLiving(w)?livingProblem(w,a,d):null) || (hasEvents(w)?eventProblem(w,a,d):null) || (hasPlanning(w)?planningProblem(w,a,d):null) || (hasAgency(w) ? agencyProblem(w,a,d) : null) || (hasCommunity(w) ? communityProblem(w,a,d) : null) || (hasCoordination(w) ? coordinationProblem(w,a,d) : null);
   const lifeIssue = coordinationIssue || (hasLife(w) ? (LIFE_TARGETS.includes(d.target) && d.action !== 'continue' && ![...LIFE_ACTIONS,...COORDINATION_ACTIONS,...COMMUNITY_ACTIONS,...AGENCY_ACTIONS,...PLANNING_ACTIONS,...EVENT_ACTIONS].includes(d.action) ? 'activity and civic targets require life actions' : lifeProblem(w,a,d)) : null);
   const villageIssue = lifeIssue || (hasVillage(w) ? (Object.hasOwn(PROJECTS, d.target) && d.action !== 'continue' && ![...VILLAGE_ACTIONS,...PLANNING_ACTIONS].includes(d.action) ? 'project targets are only for village project actions' : villagePlanProblem(w, a, d)) : null);
   const marketIssue = villageIssue || (hasEconomy(w) ? marketPlanProblem(w, a, d) : null);
-  if (hasVillage(w) && !VILLAGE_ACTIONS.includes(d.action) && !MARKET_ACTIONS.includes(d.action) && !(hasLife(w) && LIFE_ACTIONS.includes(d.action)) && !(hasCoordination(w) && COORDINATION_ACTIONS.includes(d.action)) && !(hasCommunity(w) && COMMUNITY_ACTIONS.includes(d.action)) && !(hasEvents(w)&&EVENT_ACTIONS.includes(d.action)) && (d.price !== 0 || d.offerId !== 0)) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: 'ordinary actions use price 0 and offerId 0', target: null, work: 1 }; return; }
+  if (hasVillage(w) && !VILLAGE_ACTIONS.includes(d.action) && !MARKET_ACTIONS.includes(d.action) && !(hasLife(w) && LIFE_ACTIONS.includes(d.action)) && !(hasCoordination(w) && COORDINATION_ACTIONS.includes(d.action)) && !(hasCommunity(w) && COMMUNITY_ACTIONS.includes(d.action)) && !(hasEvents(w)&&EVENT_ACTIONS.includes(d.action)) && !(hasLiving(w)&&['rsvp_event','withdraw_rsvp','event_plan'].includes(d.action)) && (d.price !== 0 || d.offerId !== 0)) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: 'ordinary actions use price 0 and offerId 0', target: null, work: 1 }; return; }
   if (marketIssue) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: marketIssue, target: null, work: 1 }; return; }
   if(hasPlanning(w)&&d.action==='continue'&&!a.task&&a.workPlan?.suspended&&a.hunger<80&&a.energy>=10){a.workPlan.suspended=false;delete a.workPlan.pauseReason;w.planning.stats.plansResumed++;a.pendingPlanResume=true;}
   if (hourly(w) && d.action === 'continue') {
     if (!a.task && !a.workPlan) a.task = { ...d, action: 'wait', target: null, work: 1 };
     return;
   }
-  const problem = isV3(w) ? planProblem(a, d) : null;
+  const problem = isV3(w) ? planProblem(a, d, w) : null;
   const issue = problem;
   if (issue) { a.task = { ...d, action: 'invalid', attempted: d.action, problem: issue, target: null, work: 1 }; return; }
-  const target = hasPlanning(w)&&PLANNING_ACTIONS.includes(d.action)?null:hasEvents(w)&&EVENT_ACTIONS.includes(d.action)?'square':hasAgency(w) && AGENCY_ACTIONS.includes(d.action) ? 'square' : hasCommunity(w) && COMMUNITY_ACTIONS.includes(d.action) ? communitySite(w,d) : hasCoordination(w) && COORDINATION_ACTIONS.includes(d.action) ? 'square' : hasLife(w) && LIFE_ACTIONS.includes(d.action) ? lifeSite(w,d) : hasVillage(w) && VILLAGE_ACTIONS.includes(d.action) ? villageSite(w, d) : hasEconomy(w) && MARKET_ACTIONS.includes(d.action) ? 'square' : required[d.action] || (d.target === 'none' ? null : d.target);
+  const target = hasLiving(w)&&['preserve_meals'].includes(d.action)?'hearth':hasLiving(w)&&['rsvp_event','withdraw_rsvp','event_plan'].includes(d.action)?'square':hasPlanning(w)&&PLANNING_ACTIONS.includes(d.action)?null:hasEvents(w)&&EVENT_ACTIONS.includes(d.action)?'square':hasAgency(w) && AGENCY_ACTIONS.includes(d.action) ? 'square' : hasCommunity(w) && COMMUNITY_ACTIONS.includes(d.action) ? communitySite(w,d) : hasCoordination(w) && COORDINATION_ACTIONS.includes(d.action) ? 'square' : hasLife(w) && LIFE_ACTIONS.includes(d.action) ? lifeSite(w,d) : hasVillage(w) && VILLAGE_ACTIONS.includes(d.action) ? villageSite(w, d) : hasEconomy(w) && MARKET_ACTIONS.includes(d.action) ? 'square' : required[d.action] || (d.target === 'none' ? null : d.target);
   if (hourly(w) && a.task?.action === d.action && a.task.target === target && (a.task.item ?? 'none') === (d.item ?? 'none') &&
       (!hasEconomy(w) || (a.task.offerId === d.offerId && a.task.price === d.price && (![...VILLAGE_ACTIONS,...LIFE_ACTIONS,...COORDINATION_ACTIONS,...COMMUNITY_ACTIONS,...AGENCY_ACTIONS,...PLANNING_ACTIONS,...EVENT_ACTIONS].includes(d.action) || a.task.customerId === d.target) && (d.action !== 'buy' || a.task.sellerId === d.target)))) {
     a.task.reason = d.reason; a.task.message = d.message; return;
   }
-  a.task = { ...d, ...((hasVillage(w) && VILLAGE_ACTIONS.includes(d.action) || hasLife(w) && LIFE_ACTIONS.includes(d.action) || hasCoordination(w) && COORDINATION_ACTIONS.includes(d.action) || hasCommunity(w) && COMMUNITY_ACTIONS.includes(d.action) || hasAgency(w) && AGENCY_ACTIONS.includes(d.action) || hasPlanning(w)&&PLANNING_ACTIONS.includes(d.action) || hasEvents(w)&&EVENT_ACTIONS.includes(d.action)) ? { customerId: d.target, projectId: d.target } : {}), ...(d.action === 'buy' ? { sellerId: d.target } : {}), target,
+  a.task = { ...d, ...((hasVillage(w) && VILLAGE_ACTIONS.includes(d.action) || hasLife(w) && LIFE_ACTIONS.includes(d.action) || hasCoordination(w) && COORDINATION_ACTIONS.includes(d.action) || hasCommunity(w) && COMMUNITY_ACTIONS.includes(d.action) || hasAgency(w) && AGENCY_ACTIONS.includes(d.action) || hasPlanning(w)&&PLANNING_ACTIONS.includes(d.action) || hasEvents(w)&&EVENT_ACTIONS.includes(d.action) || hasLiving(w)&&['preserve_meals','rsvp_event','withdraw_rsvp','event_plan'].includes(d.action)) ? { customerId: d.target, projectId: d.target } : {}), ...(d.action === 'buy' ? { sellerId: d.target } : {}), target,
     work: hasPlanning(w)&&PLANNING_ACTIONS.includes(d.action)?1:d.action === 'rest' ? 8 : ['hobby','accept_invite','recover',...(hasEvents(w)?['join_event']:[])].includes(d.action) ? 6 : ['give', 'steal', 'take', 'offer', 'buy', 'cancel_offer'].includes(d.action) ? 1 : productionWork(w, a, d.action, target) };
+  if(hasLiving(w)&&d.action==='cook')reserveKitchen(w,a,a.task);
 }
 
 function regrow(w) {
@@ -407,15 +417,18 @@ export function advance(w) {
       if (isV4(w)) rememberEncounter(w, b, e);
     }
   };
+  if(hasLiving(w)){syncMeals(w);expireMeals(w,event);}
   expireOffers(w, event);
   expireVillage(w, event);
   expireLife(w,event);
   expireCommunity(w,event);
   expireEvents(w,event);
   updateGoals(w,event);
+  if(hasLiving(w))syncMeals(w);
   if (isV3(w)) regrow(w);
   // Rotate the resolution order rather than always favoring the first villager.
-  const agents = [...w.agents.slice(w.tick % 6), ...w.agents.slice(0, w.tick % 6)];
+  const rotation=w.tick%(hasLiving(w)?w.agents.length:6);
+  const agents = [...w.agents.slice(rotation), ...w.agents.slice(0, rotation)];
   for (const a of agents) {
     if (hasCommunity(w)) communityTick(w,a);
     else if (hasVillage(w)) a.satisfaction = Math.max(0, a.satisfaction - (a.home.furnishing ? 0.03 : 0.06));
@@ -426,13 +439,13 @@ export function advance(w) {
       if(hasPlanning(w)&&a.pendingPlanPause){event(a,`${a.name} paused a saved plan; original deadline remains.`, 'plan_paused');delete a.pendingPlanPause;}
       if(hasPlanning(w)&&a.pendingPlanResume){event(a,`${a.name} resumed a saved plan.`, 'plan_resumed');delete a.pendingPlanResume;}
       const agencyStop=hasAgency(w)?agencyPlanInterruption(w,a):null;
-      if(agencyStop){stopPlan(w,a,agencyStop);if(!hasPlanning(w)||a.task?.planStep)a.task=null;event(a,`${a.name} stopped upkeep (${agencyStop}); unspent reserved wages returned.`, 'plan_stopped',{refund:a.lastWorkPlan.refund||null});}
+      if(agencyStop){stopPlan(w,a,agencyStop);if(!hasPlanning(w)||a.task?.planStep){if(hasLiving(w))refundKitchen(w,a,a.task);a.task=null;}event(a,`${a.name} stopped upkeep (${agencyStop}); unspent reserved wages returned.`, 'plan_stopped',{refund:a.lastWorkPlan.refund||null});}
       if(a.workPlan && !a.workPlan.finished && (w.tick>=a.workPlan.expiresAt || (!a.workPlan.suspended&&(a.hunger>=80||a.energy<10)))) {
         if(hasPlanning(w)&&w.tick<a.workPlan.expiresAt){pausePlan(w,a,'hunger or energy safety limit');}
-        else {stopPlan(w,a,'interrupted');if(!hasPlanning(w)||a.task?.planStep)a.task=null;event(a,`${a.name} stopped a production plan at its safety/time limit.`, 'plan_stopped',hasAgency(w)?{refund:a.lastWorkPlan?.refund||null}:{});}
+        else {stopPlan(w,a,'interrupted');if(!hasPlanning(w)||a.task?.planStep){if(hasLiving(w))refundKitchen(w,a,a.task);a.task=null;}event(a,`${a.name} stopped a production plan at its safety/time limit.`, 'plan_stopped',hasAgency(w)?{refund:a.lastWorkPlan?.refund||null}:{});}
       }
       if(a.workPlan && !a.workPlan.suspended && !a.task) {
-        const derived=(hasPlanning(w)?planningWait(w,a):null)||(hasAgency(w)&&a.workPlan.kind==='upkeep_plan'?nextAgencyStep(w,a):{choice:nextPlanStep(w,a,{fuel:cookingWood(w),toolWood:craftCost(w,a)})});
+        const derived=(hasLiving(w)?eventPlanStep(w,a):null)||(hasPlanning(w)?planningWait(w,a):null)||(hasAgency(w)&&a.workPlan.kind==='upkeep_plan'?nextAgencyStep(w,a):{choice:nextPlanStep(w,a,{fuel:hasLiving(w)?1:cookingWood(w),toolWood:craftCost(w,a)})});
         if(derived?.choice) { assign(w,a,derived.choice,true); a.task.planStep=true; if(derived.work)a.task.work=derived.work; }
         else event(a,`${a.name} ended a production plan (${a.lastWorkPlan.status}).`, a.lastWorkPlan.status==='completed'?'plan_completed':'plan_stopped',hasAgency(w)?{refund:a.lastWorkPlan.refund||null}:{});
       }
@@ -462,10 +475,10 @@ export function advance(w) {
         a.energy = Math.max(0, a.energy - 6); text = `gathered ${count} ${item === 'raw' ? 'ingredients' : 'wood'}.`; break;
       }
       case 'cook': {
-        const woodCost = cookingWood(w);
-        if (!bag.raw || bag.wood < woodCost || a.energy < 5) { text = 'could not cook: needs ingredients, wood and energy.'; failed = true; break; }
+        const woodCost = hasLiving(w)?(t.kitchen?.cost??1):cookingWood(w);
+        if (!bag.raw || (hasLiving(w)?!t.kitchen:bag.wood < woodCost) || a.energy < 5) { text = 'could not cook: needs ingredients, wood and energy.'; failed = true; break; }
         const yieldMeals = cookYield(w, a);
-        bag.raw--; bag.wood -= woodCost; spendCookingFuel(w); bag.meal += yieldMeals; a.energy = Math.max(0, a.energy - 4); bump(a, 'cooked', yieldMeals);
+        bag.raw--; if(hasLiving(w))settleKitchen(w,a,t,true);else{bag.wood -= woodCost; spendCookingFuel(w);} bag.meal += yieldMeals; a.energy = Math.max(0, a.energy - 4); bump(a, 'cooked', yieldMeals);
         practice(w, a, 'cook'); w.mealsCooked += yieldMeals;
         text = yieldMeals === 2 ? 'cooked two safe meals at the hearth.' : `cooked ${yieldMeals} safe meals at the hearth.`; break;
       }
@@ -479,6 +492,9 @@ export function advance(w) {
       }
       case 'set_goal': case 'clear_goal': case 'resume_plan': {
         const result=completePlanningAction(w,a,t);text=result.text;failed=Boolean(result.failed);kind=result.kind||kind;extra=result.extra||{};break;
+      }
+      case 'preserve_meals': case 'rsvp_event': case 'withdraw_rsvp': case 'event_plan': {
+        const result=livingAction(w,a,t);text=result.text;failed=Boolean(result.failed);kind=result.kind||kind;extra=result.extra||{};break;
       }
       case 'host_event': case 'prepare_event': case 'join_event': case 'cancel_event': {
         const result=completeEventAction(w,a,t);text=result.text;failed=Boolean(result.failed);kind=result.kind||kind;extra=result.extra||{};break;
@@ -531,23 +547,27 @@ export function advance(w) {
       case 'invalid': text = `could not ${t.attempted}: ${t.problem}.`; failed = true; break;
       default: text = 'waited and watched the village.';
     }
+    if(hasLiving(w)){if(t.action==='cook'&&failed)refundKitchen(w,a,t);syncMeals(w);}
     if(hasAgency(w)){agencyStepResult(w,a,t,failed);feedback(w,a,t,{failed,kind:failed?'blocked':kind,text});}
     if (failed) { kind = 'blocked'; bump(a, 'blocked'); }
     if(hasCommunity(w) && t.planStep) { w.community.stats.planSteps++; extra={...extra,planStep:true,planKind:a.workPlan?.kind}; if(a.workPlan)a.workPlan.steps++; if(failed){if(recoverShortage(w,a,t))extra.recovery={retryAt:a.workPlan.retryAt,shortages:a.workPlan.shortages};else{stopPlan(w,a,'blocked');if(hasAgency(w))extra.refund=a.lastWorkPlan?.refund||null;}} }
     a.task = null; w.completedActions++; event(a, `${a.name} ${text}`, kind, extra);
   }
   if(hasCommunity(w)) for(const id of ['clinic','garden'])if(w.life.council[id].serviceUntil>w.tick)w.community.stats[id+'ActiveTicks']++;
+  if(hasLiving(w)){recordScores(w);}
   w.tick++;
+  if(hasLiving(w)){syncMeals(w);expireMeals(w,event);}
   expireOffers(w, event);
   expireVillage(w, event);
   expireLife(w,event);
   expireCommunity(w,event);
   expireEvents(w,event);
   updateGoals(w,event);
+  if(hasLiving(w))syncMeals(w);
   if (isV4(w) && w.tick % TICKS_PER_DAY === 0) {
     const cumulative = { ...metrics(w), gathered: w.agents.reduce((n, a) => n + a.stats.gathered, 0),
       gatheredFood: w.agents.reduce((n, a) => n + a.stats.gatheredFood, 0), gatheredWood: w.agents.reduce((n, a) => n + a.stats.gatheredWood, 0), mealsCooked: w.mealsCooked };
-    const daily = Object.fromEntries(['gifts', 'thefts', 'theftAttempts', 'pantryShares', 'pantryTakes', 'messages', 'blocked', 'rawMeals', 'starvingHours', 'gathered', 'gatheredFood', 'gatheredWood', 'mealsCooked', ...(hasEconomy(w) ? ['trades', 'coinsTraded', 'toolsCrafted', 'toolsUsed', 'offersPosted'] : []), ...(hasVillage(w) ? Object.keys(w.village.stats) : []), ...(hasLife(w) ? Object.keys(w.life.stats) : []), ...(hasCoordination(w) ? Object.keys(w.coordination.stats) : []), ...(hasCommunity(w) ? Object.keys(w.community.stats) : []), ...(hasAgency(w) ? Object.keys(w.agency.stats) : []), ...(hasPlanning(w)?Object.keys(w.planning.stats):[])]
+    const daily = Object.fromEntries(['gifts', 'thefts', 'theftAttempts', 'pantryShares', 'pantryTakes', 'messages', 'blocked', 'rawMeals', 'starvingHours', 'gathered', 'gatheredFood', 'gatheredWood', 'mealsCooked', ...(hasEconomy(w) ? ['trades', 'coinsTraded', 'toolsCrafted', 'toolsUsed', 'offersPosted'] : []), ...(hasVillage(w) ? Object.keys(w.village.stats) : []), ...(hasLife(w) ? Object.keys(w.life.stats) : []), ...(hasCoordination(w) ? Object.keys(w.coordination.stats) : []), ...(hasCommunity(w) ? Object.keys(w.community.stats) : []), ...(hasAgency(w) ? Object.keys(w.agency.stats) : []), ...(hasPlanning(w)?Object.keys(w.planning.stats):[]),...(hasLiving(w)?Object.keys(w.living.stats):[])]
       .map(k => [k, Math.round((cumulative[k] - (w.previousDayMetrics?.[k] || 0)) * 10) / 10]));
     events.push({ kind: 'day_summary', tick: w.tick, day: w.tick / TICKS_PER_DAY, text: `Day ${w.tick / TICKS_PER_DAY} complete.`, daily, cumulative,
       residents: w.agents.map(a => ({ id: a.id, name: a.name, hunger: a.hunger, health: a.health, inventory: clone(a.inventory),
@@ -567,7 +587,7 @@ export function metrics(w) {
   return { gifts: sum('gave'), thefts: sum('stole'), theftAttempts: sum('stealAttempts'), pantryShares: sum('shared'), pantryTakes: sum('took'),
     messages: sum('talked'), blocked: sum('blocked'), rawMeals: sum('ateRaw'), starvingHours: Math.round(sum('starvingTicks') / DECISION_INTERVAL * 10) / 10,
     foodGini: Math.round(gini * 100) / 100, orchard: w.resources.food, woods: w.resources.wood, pantry: w.pantry,
-    lowestHealth: Math.round(Math.min(...w.agents.map(a => a.health))), ...economyMetrics(w), ...villageMetrics(w), ...lifeMetrics(w), ...(hasCoordination(w) ? w.coordination.stats : {}), ...(hasCommunity(w) ? {...w.community.stats, averageComfort:Math.round(w.agents.reduce((n,a)=>n+a.wellbeing.comfort,0)/6), averageConnection:Math.round(w.agents.reduce((n,a)=>n+a.wellbeing.connection,0)/6), averageEnjoyment:Math.round(w.agents.reduce((n,a)=>n+a.wellbeing.enjoyment,0)/6), jobCoinsReserved:w.community.jobs.reduce((n,j)=>n+j.escrow,0)} : {}), ...(hasAgency(w)?w.agency.stats:{}), ...(hasPlanning(w)?w.planning.stats:{}) };
+    lowestHealth: Math.round(Math.min(...w.agents.map(a => a.health))), ...economyMetrics(w), ...villageMetrics(w), ...lifeMetrics(w), ...(hasCoordination(w) ? w.coordination.stats : {}), ...(hasCommunity(w) ? {...w.community.stats, averageComfort:Math.round(w.agents.reduce((n,a)=>n+a.wellbeing.comfort,0)/(hasLiving(w)?w.agents.length:6)), averageConnection:Math.round(w.agents.reduce((n,a)=>n+a.wellbeing.connection,0)/(hasLiving(w)?w.agents.length:6)), averageEnjoyment:Math.round(w.agents.reduce((n,a)=>n+a.wellbeing.enjoyment,0)/(hasLiving(w)?w.agents.length:6)), jobCoinsReserved:w.community.jobs.reduce((n,j)=>n+j.escrow,0)} : {}), ...(hasAgency(w)?w.agency.stats:{}), ...(hasPlanning(w)?w.planning.stats:{}),...(hasLiving(w)?livingMetrics(w):{}) };
 }
 
 export class WorldStore {

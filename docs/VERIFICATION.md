@@ -1,3 +1,28 @@
+# v0.12.0 living village, visitor and competition — 2026-10-24
+
+- Local full regression passes, followed by 26 final focused living/legacy/owner-UI checks.
+  The seventeen new living tests cover independent condition flags, reserved stove credits/wood,
+  once-only refunds, private pause decisions, original-age meal transfers/preservation/spoilage,
+  simultaneous owner refunds, expired listings/events and atomic RSVP/attendance/payment.
+- Deterministic ten-day observation-only policies keep all six original residents, or seven people
+  with Rowan arriving on day four, at health 100 without starvation/raw meals. No model calls,
+  emergency resources or forced survival actions are used. This establishes feasibility only.
+- Visitor tests cover exactly-once arrival before a seven-person frozen round, fresh private state,
+  zero new coins, actual trade, request budgets and persistence. Fake transport through the real
+  adapter records seven exact schema/input requests after arrival. No live subscription inference
+  is started. Permanent compatibility fingerprints now cover released v4–v12 inputs and physics.
+- Contest checks verify time averages, capped wealth, refundable ownership, no trade-count rewards,
+  own-only villager score observations and separate unscored control. Owner HTTP and research
+  preserve condition flags, call budgets, six spectator contestants and paused five-run queues.
+- Disposable desktop 1440×1000 and phone 390×844 browser checks cover control defaults, independent
+  visitor+competition creation, 8,040 planned batch requests, seven residents/six contestants,
+  freshness/goal/event boards, 48 coins, legacy batch/archive controls, themes and page overflow.
+  These are emulated viewports, not physical-device or live-model adoption tests.
+- No production runs, queued rules, saved evidence or credentials were changed. Deploy paused,
+  then evaluate fresh v13 controls before separate visitor and competitive batches. The visitor
+  contrast includes an extra consumer/producer and recorded supplies; scores deliberately alter
+  incentives. Neither is interchangeable with the unscored/no-visitor control.
+
 # v0.11.0 goals, resilient work and optional event supply loop — 2026-10-24
 
 - All 192 local tests and syntax checks pass. New deterministic tests cover private daily goals,

@@ -54,3 +54,5 @@ label.check{display:flex;align-items:center;gap:8px;font-size:11px;align-self:en
 @media(max-width:600px){#life-section .market-offers{grid-template-columns:1fr}}
 
 @media(max-width:600px){#planning-section .market-offers,#shared-events-section .market-offers{grid-template-columns:1fr}}
+
+@media(max-width:600px){#living-section .market-offers{grid-template-columns:1fr}}

@@ -1,3 +1,4 @@
+import { prepareVisitor } from './living.js';
 import { randomUUID } from 'node:crypto';
 import { failureCode } from './diagnostics.js';
 import { instructionsFor } from './codex.js';
@@ -89,6 +90,7 @@ export class Runner {
     this.busy = true; const generation = this.generation;
     try {
       this.store.checkStorage();
+      const arrival=prepareVisitor(w);if(arrival.length)this.store.save(arrival,true);
       let decisions = [], reviewed = false;
       // All proposals see the same frozen physical world. Apply only after the complete round.
       if (hourly(w)) {

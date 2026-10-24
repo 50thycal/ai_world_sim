@@ -6,6 +6,7 @@ import { createHmac } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../src/server.js';
+import { prepareVisitor } from '../src/living.js';
 import { assign, advance } from '../src/world.js';
 
 const dir = mkdtempSync(join(tmpdir(), 'village-browser-'));
@@ -50,7 +51,9 @@ try {
     assert.equal(await page.getByLabel('Requests, projects, homes & gatherings (v6)').isChecked(),true);
     assert.equal(await page.getByLabel('Businesses, hobbies & council (v7)').isChecked(),true);
     assert.equal(await page.getByLabel('Goals & resilient work (v11)').isChecked(),true);
-    assert.equal(await page.getByLabel('Shared-event supply loop (v12 · separate experiment)').isChecked(),false);
+    assert.equal(await page.getByLabel('Shared-event supply loop (v12 · separate experiment)').isChecked(),true);
+    assert.equal(await page.getByLabel('Living village upgrades (v13)').isChecked(),true);
+    assert.equal(await page.getByLabel('Experiment condition',{exact:true}).inputValue(),'control');
     assert.equal(await page.getByLabel('Useful choices & upkeep plans (v10)').isChecked(),true);
     assert.equal(await page.getByLabel('Plans, paid jobs & varied wellbeing (v9)').isChecked(),true);
     assert.equal(await page.getByLabel('Clearer coordination & trade benefits (v8)').isChecked(),true);
@@ -64,7 +67,7 @@ try {
     await page.getByRole('button', { name: 'Create paused batch' }).click();
     await page.getByText('Batch ready. Press Play village / batch to begin.', { exact: true }).waitFor();
     assert.equal(app.store.world.scenario.id, 'sustainable');
-    assert.equal(app.store.world.version, 'world-v11');
+    assert.equal(app.store.world.version, 'world-v13');assert.equal(app.store.world.living.condition,'control');
     assert.equal(app.store.world.execution.pace,'fast');
     await page.getByRole('button', { name: 'Close owner controls' }).click();
     await page.getByRole('heading', { name: 'The village market' }).waitFor();
@@ -140,7 +143,7 @@ try {
     act(mira,{action:'set_goal',target:'stove',item:'none'});
     await page.reload();await page.getByRole('heading',{name:'Making tomorrow better'}).waitFor();
     assert.match(await page.locator('#planning-goal').innerText(),/stove/);
-    assert.equal(await page.locator('#shared-events-section').isHidden(),true);
+    assert.equal(await page.locator('#shared-events-section').isHidden(),false);assert.equal(await page.locator('#contest-board').isHidden(),true);assert.match(await page.locator('#living-condition').innerText(),/Control.*unscored/);
     await page.screenshot({path:`${screenshots}/v11-${name}-planning.png`,fullPage:true});
     await page.getByRole('button',{name:'Owner controls ↗'}).click();
     await page.getByRole('button',{name:'Restart worker & resume saved round'}).waitFor();
@@ -169,6 +172,26 @@ try {
     act(guest,{action:'join_event',target:host.id,item:'none',price:1,offerId:shared.id});
     await page.reload();await page.locator('#shared-events-summary').getByText(/1 held/).waitFor();
     assert.match(await page.locator('#market-summary').innerText(),/48 coins total/);
+    // Create the independent visitor+competitive condition through the actual owner form.
+    await page.getByRole('button',{name:'Owner controls ↗'}).click();
+    await page.getByLabel('Simulation days').fill('10');
+    await page.getByLabel('Experiment condition',{exact:true}).selectOption('visitor_competitive');
+    assert.match(await page.locator('#run-budget').innerText(),/8,040 planned.*8,100 model requests/);
+    await page.getByRole('button',{name:'Create paused batch'}).click();
+    await page.getByText('Batch ready. Press Play village / batch to begin.',{exact:true}).waitFor();
+    assert.equal(app.batches.batch.count,5);assert.equal(app.store.world.plannedCalls,1608);
+    await page.getByRole('button',{name:'Close owner controls'}).click();
+    app.store.world.tick=864;app.store.world.nextDecisionTick=864;
+    app.store.save(prepareVisitor(app.store.world),true);
+    for(let i=0;i<12;i++)app.store.save(advance(app.store.world),true);
+    await page.reload();await page.getByRole('heading',{name:'The village contest'}).waitFor();
+    assert.equal(await page.locator('#residents .resident').count(),7);
+    assert.equal(await page.locator('#contest-scores article').count(),6);
+    assert.match(await page.locator('#living-condition').innerText(),/Rowan is here/);
+    assert.match(await page.locator('#living-freshness').innerText(),/Next expiry|No cooked meals/);
+    assert.match(await page.locator('#market-summary').innerText(),/48 coins total/);
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await page.screenshot({path:`${screenshots}/v13-${name}-visitor-contest.png`,fullPage:true});
     // A real five-run scripted queue populates comparison results and archival inspection.
     app.batches.create('demo',null,{village:true,days:1,socialStart:false});app.batches.play();
     while(app.batches.batch.status==='running'){await app.runner.step();app.batches.advance();}
