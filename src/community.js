@@ -1,8 +1,8 @@
-import { LIVING_VERSION, hasLiving, AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION, hasAgency } from './treatments.js';
+import { ADAPTIVE_VERSION, LIVING_VERSION, hasLiving, AGENCY_VERSION, PLANNING_VERSION, EVENT_VERSION, hasAgency } from './treatments.js';
 // Fresh v9 rules only: consented plans, coin-backed jobs and differentiated wellbeing.
 export const COMMUNITY_VERSION = 'world-v9';
 export const COMMUNITY_INPUT = 'community-facts-v1';
-export const hasCommunity = w => [COMMUNITY_VERSION,AGENCY_VERSION,PLANNING_VERSION,EVENT_VERSION,LIVING_VERSION].includes(w.version) && w.community?.version === 1;
+export const hasCommunity = w => [COMMUNITY_VERSION,AGENCY_VERSION,PLANNING_VERSION,EVENT_VERSION,LIVING_VERSION,ADAPTIVE_VERSION].includes(w.version) && w.community?.version === 1;
 export const COMMUNITY_ACTIONS = ['meal_plan','shop_plan','restock_shop','cancel_plan','post_order','claim_job','complete_job','cancel_job','reserve_upkeep'];
 const GOODS = ['raw','wood','meal','tool','leisure_kit'];
 const orderGoods = w => hasAgency(w) ? [...GOODS,'bed','furnishing'] : GOODS;

@@ -5,7 +5,21 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.12.0 / living village v13
+## Current release: app v0.13.0 / sustainable commitments v14
+
+Fresh owner batches default to five ten-day hourly/Fast v14 controls, with visitor and competition
+still separate. V14 adds an own-food expiry/use forecast, clearer preservation/fuel tradeoffs,
+correct cooking-reservation handoff, and explicit bounded guest travel/wait/attendance plans.
+
+The phone overview summarizes the selected village and its completed batch, with direct links to
+work, shared plans and evidence. Archived scorecards stay intact and newer shared events appear
+in comparisons. All v4–v13 saved conditions retain their original schemas, inputs and physics.
+
+See the [five actual build/test/review cycles](docs/FIVE_CYCLE_REVIEW.md) for the completed v13
+control findings, corrections, exact checks and remaining limits. Local checks establish contracts
+and feasibility; fresh live runs must establish spontaneous adoption and improved outcomes.
+
+## Earlier release: app v0.12.0 / living village v13
 
 Fresh batches default to five ten-day hourly/Fast unscored control villages. Cooking reserves its
 fuel, meals keep their age through trade and expire after three days (six with explicit preservation),

@@ -56,3 +56,8 @@ label.check{display:flex;align-items:center;gap:8px;font-size:11px;align-self:en
 @media(max-width:600px){#planning-section .market-offers,#shared-events-section .market-offers{grid-template-columns:1fr}}
 
 @media(max-width:600px){#living-section .market-offers{grid-template-columns:1fr}}
+
+.village-overview{border-top:1px solid var(--line);padding:20px 0;margin-bottom:22px}.overview-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.overview-grid h3{font-size:20px}.overview-grid p{font-size:12px;line-height:1.5}.overview-links{display:flex;flex-wrap:wrap;gap:10px 20px;font-size:12px;margin-top:16px}.overview-links a{color:var(--green)}
+@media(max-width:690px){.village-overview .section-heading{display:block}.village-overview .section-heading h2{font-size:25px}.overview-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.overview-grid h3{font-size:18px}.overview-grid p{font-size:11px}.overview-links a{padding:8px 0}#community-plans{grid-template-columns:1fr}}
+
+#overview-batch{font-size:12px;line-height:1.6;margin:16px 0}.overview-links a:focus-visible{outline:2px solid var(--green);outline-offset:4px}
