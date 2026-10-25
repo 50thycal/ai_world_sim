@@ -1,3 +1,28 @@
+# v0.13.0 sustainable commitments — 2026-10-25
+
+- Completed five distinct evidence-driven build/test/review/improve cycles, followed by a final
+  malformed-continuation accounting correction. Each baseline, finding, correction, retest and
+  visual check is recorded in [FIVE_CYCLE_REVIEW](FIVE_CYCLE_REVIEW.md).
+- Reviewed all 22,074 scientific records from the completed five-run v13 control batch, 7,201 exact
+  inputs and 1,200 applied rounds. Food/coins reconcile; a 13-wood accounting residual and a real
+  task-handoff reservation-loss reproduction motivated the v14 repair. Historical evidence remains.
+- Full local 218-test regression and syntax checks passed; final 11 focused adaptive/legacy checks
+  pass after the continuation edge-case correction. Exact released v4–v13 fingerprints remain.
+- New checks cover preservation advice versus expiry/use, fuel and credit refunds on real plan
+  replacement, contextual-invalid continuation, explicit host/guest travel/wait/payment, withdrawal,
+  paused attendance-plan reload and fresh five-member queue flags. Fake adapter records exact v14
+  inputs/schema and the seven-person visitor review without live subscription inference.
+- Ten-day observation-only v14 control/visitor policies survive at full health without raw meals
+  or starvation, and independently reconcile food including spoilage, wood including reservations,
+  and all 48 coins. These are feasibility checks, not spontaneous model adoption evidence.
+- Real desktop 1440×1000 and phone 390×844 browser checks pass for archive/return-to-live scores,
+  RSVP/host/guest event completion, phone outcome overview, condition defaults, shared-event table
+  counts, links, dark/light themes, no page errors and no horizontal page overflow. Actual completed
+  v13 reports were additionally loaded into disposable local storage to inspect the real output.
+- No live run, credentials or production data changed. Fresh v14 controls are required before
+  matching visitor/competitive treatments; event adoption, better resource choices and sustained
+  economic improvement remain live-model questions. Old v13 conservation defects are not erased.
+
 # v0.12.0 living village, visitor and competition — 2026-10-24
 
 - Local full regression passes, followed by 26 final focused living/legacy/owner-UI checks.

@@ -67,7 +67,7 @@ try {
     await page.getByRole('button', { name: 'Create paused batch' }).click();
     await page.getByText('Batch ready. Press Play village / batch to begin.', { exact: true }).waitFor();
     assert.equal(app.store.world.scenario.id, 'sustainable');
-    assert.equal(app.store.world.version, 'world-v13');assert.equal(app.store.world.living.condition,'control');
+    assert.equal(app.store.world.version, 'world-v14');assert.equal(app.store.world.living.condition,'control');
     assert.equal(app.store.world.execution.pace,'fast');
     await page.getByRole('button', { name: 'Close owner controls' }).click();
     await page.getByRole('heading', { name: 'The village market' }).waitFor();

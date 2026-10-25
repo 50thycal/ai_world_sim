@@ -26,6 +26,7 @@ export function prepareVisitor(w) {
     economicStats:Object.fromEntries(Object.keys(a.economicStats).map(k=>[k,0])),personal:{interest:'games',preferredHour:19,lastLeisureAt:null,lastCareAt:null,leisureCount:0},
     wellbeing:{comfort:40,connection:35,enjoyment:45,recent:[],sharedWith:{}},satisfaction:40,workPlan:null,lastWorkPlan:null,goal:null,lastGoal:null,
     actionFeedback:null,lastAttempt:null,eventsHosted:0});
+  delete a.lastAttendedEvent;
   delete a.pendingPlanStop;delete a.pendingPlanPause;delete a.pendingPlanResume;
   Object.assign(a.inventory,{raw:2,wood:1,meal:1});w.agents.push(a);w.living.visitor.arrived=true;w.living.stats.visitorArrivals++;syncMeals(w);
   const e={kind:'visitor_arrived',tick:w.tick,actor:a.name,actorId:a.id,x:a.x,y:a.y,endowment:structuredClone(w.living.visitor.endowment),text:'Rowan arrived for the remainder of the run with two raw food, one wood, one meal and zero coins. Rowan is independently model-controlled and may work, trade or socialize.'};

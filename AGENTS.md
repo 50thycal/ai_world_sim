@@ -141,3 +141,16 @@ start/resume/reset a run just to inspect it. Model dialogue and stated reasons a
   including refundable own escrow. No direct action/trade-count rewards. Spectator scores must
   not enter other residents' observations. Rowan is unscored; default control has no maximize-score
   instruction. See LIVING_VILLAGE for comparison limits and required evaluation order.
+
+- Sustainable commitments are fresh `world-v14` (`adaptive:true` implies living), with
+  `adaptive-facts-v1`. Default owner setup is five ten-day hourly/Fast v14 controls; visitor and
+  competitive flags stay independent. Never migrate v13 runs or remove its recorded defects.
+- The own-food forecast is conditional advice, not automatic preservation/eating. All actions
+  remain available. Fuel reservations must refund before an internal cooking task is discarded
+  by an explicit parent-plan override; preserve exact wood/credit ownership.
+- attend_plan requires the guest's RSVP and exact advertised ticket. It authorizes at most twelve
+  ordinary travel/wait/join steps within twelve hours and original event expiry. Safety pauses,
+  revocation, actual attendance and payment rules remain; no automatic food, other purchases or
+  forced resumption. Keep all shared-event counters distinct from declared intentions.
+- Reproduce the five-cycle review through scripts/check-improvements.js. Actual live evidence
+  remains outside git; distinguish local actual-run display checks from CI synthetic fixtures.
