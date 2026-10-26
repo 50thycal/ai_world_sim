@@ -5,7 +5,7 @@ share meals and talk within hearing range. A small Railway-first MVP to test sub
 villagers before extending the world.
 
 
-## Current release: app v0.13.0 / sustainable commitments v14
+## Current release: app v0.13.1 / sustainable commitments v14
 
 Fresh owner batches default to five ten-day hourly/Fast v14 controls, with visitor and competition
 still separate. V14 adds an own-food expiry/use forecast, clearer preservation/fuel tradeoffs,
@@ -177,7 +177,7 @@ full physical state. Exactly **48 coins including request escrow** circulate; no
 Unfinished services and unaccepted invitations retain their reserved supplies at the end of a run.
 
 Uncheck cooperative life to repeat v5; disable both economy options for v4. Existing worlds retain
-their original version and observations. Batches reserve enough of the 50 saved-run slots
+their original version and observations. Batches reserve enough of the 500 saved-run slots
 before starting and never remove evidence. One batch is a repeated-condition experiment: changes
 bundle prompts and physical rules, and results do not establish which individual mechanic caused an effect.
 

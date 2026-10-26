@@ -37,6 +37,7 @@ export class Batches {
   }
   create(mode, model, options, count = DEFAULT_RUNS) {
     validateRunCount(count);
+    this.store.checkStorage();
     const used = this.store.db.prepare('SELECT count(*) n FROM worlds').get().n;
     if (used + count > MAX_SAVED_RUNS) throw new Error(`This batch needs ${count} saved-run slots; ${MAX_SAVED_RUNS-used} remain. Existing evidence is retained. Choose fewer runs or archive saved evidence before retrying.`);
     // Validate/build before cancelling any existing batch.

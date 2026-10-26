@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { diskSpace, requireStorage, MIN_FREE_BYTES, encodeRecord, decodeRecord } from '../src/storage.js';
 import { WorldStore } from '../src/world.js';
+import { Batches } from '../src/batches.js';
 import { Runner } from '../src/runner.js';
 import { Research } from '../src/research.js';
 import { compactEvidence } from '../scripts/compact-evidence.js';
@@ -66,4 +67,19 @@ test('SQLite full preserves the original write error when SQLite already rolled 
   assert.throws(()=>store.save([{kind:'talk',text:'x'.repeat(1000000)}]),error=>error.errcode===13);
   assert.equal(store.db.isTransaction,false);assert.equal(store.records().length,0);
  }finally{store.close();rmSync(dir,{recursive:true,force:true});}
+});
+
+test('new-world storage guard refuses low or unknown space without cancelling queues or changing evidence',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'village-admission-space-')),store=new WorldStore(join(dir,'w.sqlite'));
+  try {
+    const batches=new Batches(store,new Runner(store,{}));batches.create('demo',null,{adaptive:true});
+    const before={world:structuredClone(store.world),batch:structuredClone(batches.batch),rows:store.db.prepare('SELECT * FROM worlds ORDER BY id').all()};
+    for(const space of [{availableBytes:0},{availableBytes:null}]){
+      store.checkStorage=()=>requireStorage(space);
+      assert.throws(()=>batches.create('demo',null,{adaptive:true}),/storage|Storage/);
+      assert.throws(()=>store.reset('demo',null,{}),/storage|Storage/);
+      assert.deepEqual(store.world,before.world);assert.deepEqual(batches.batch,before.batch);
+      assert.deepEqual(store.db.prepare('SELECT * FROM worlds ORDER BY id').all(),before.rows);
+    }
+  } finally {store.close();rmSync(dir,{recursive:true,force:true});}
 });

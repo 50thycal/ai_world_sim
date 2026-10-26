@@ -64,8 +64,14 @@ try {
     // Check layout and owner form at the actual phone viewport, not a cropped desktop image.
     assert.ok(await page.locator('#owner-dialog').evaluate(e => e.getBoundingClientRect().right <= innerWidth));
     await page.screenshot({ path: `${screenshots}/v4-${name}-setup.png` });
+    // Reproduce the production count that blocked v14 creation under the former 50-run cap.
+    while(app.store.db.prepare('SELECT count(*) n FROM worlds').get().n<49)app.store.reset('demo',null,{});
+    const retainedIds=app.store.db.prepare('SELECT id FROM worlds').all().map(r=>r.id);
     await page.getByRole('button', { name: 'Create paused batch' }).click();
     await page.getByText('Batch ready. Press Play village / batch to begin.', { exact: true }).waitFor();
+    for(const id of retainedIds)assert.ok(app.store.db.prepare('SELECT id FROM worlds WHERE id=?').get(id));
+    await page.locator('#new-run').scrollIntoViewIfNeeded();
+    await page.screenshot({path:`${screenshots}/v14-capacity-${name}.png`});
     assert.equal(app.store.world.scenario.id, 'sustainable');
     assert.equal(app.store.world.version, 'world-v14');assert.equal(app.store.world.living.condition,'control');
     assert.equal(app.store.world.execution.pace,'fast');

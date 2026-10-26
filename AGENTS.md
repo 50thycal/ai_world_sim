@@ -45,7 +45,7 @@ start/resume/reset a run just to inspect it. Model dialogue and stated reasons a
   Include reserved coins and food in conservation. Satisfaction is not health or a trust score.
 - Fresh owner batches default to five serial runs, each ten days; no cross-run learning or hidden
   seed variation. Keep IDs, settings, every started result and failures. Never replace a failed
-  member, auto-resume after restart, or prune evidence to fit the 50-world limit.
+  member, auto-resume after restart, or prune evidence to fit the 500-world limit.
 - Inspect `/api/research/batches` for replication results. Aggregates use completed members only;
   report incomplete/paused outcomes as well. Fake-provider/demo batches are not live model evidence.
 

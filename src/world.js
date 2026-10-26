@@ -20,7 +20,7 @@ import { ECONOMY_VERSION, hasEconomy, addEconomy, MARKET_ACTIONS, economyObserva
   marketPlanProblem, expireOffers, completeMarketAction, economyMetrics, productionWork, gatherYield,
   useTool, cookYield, practice, skillFor, craftCost } from './economy.js';
 
-export const APP_VERSION = '0.13.0';
+export const APP_VERSION = '0.13.1';
 export const GROUNDED_INPUT = 'current-facts-v1';
 export const VERSION = 'world-v4';
 export const LATEST_VERSION = ADAPTIVE_VERSION;
@@ -34,7 +34,7 @@ export const groundedInput = w => isV4(w) && [GROUNDED_INPUT, COORDINATED_INPUT,
 export const TICKS_PER_DAY = 288;
 export const DEFAULT_DAYS = 10;
 export const MAX_DAYS = 30;
-export const MAX_SAVED_RUNS = 50;
+export const MAX_SAVED_RUNS = 500;
 export function validateDays(days) {
   if (!Number.isInteger(days) || days < 1 || days > MAX_DAYS) throw new Error(`Choose a whole number of days from 1 to ${MAX_DAYS}`);
   return days;
@@ -635,6 +635,7 @@ export class WorldStore {
     } catch (e) { if (this.db.isTransaction) { try { this.db.exec('ROLLBACK'); } catch {} } throw e; }
   }
   reset(mode, model, options) {
+    this.checkStorage();
     if (this.db.prepare('SELECT count(*) n FROM worlds').get().n >= MAX_SAVED_RUNS) throw new Error(`${MAX_SAVED_RUNS} saved runs retained. Export and archive before starting more.`);
     this.world = newWorld(mode, model, options); this.save([], true);
   }
