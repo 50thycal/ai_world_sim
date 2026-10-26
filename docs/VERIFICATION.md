@@ -1,3 +1,29 @@
+# v0.13.1 saved-run capacity fix — 2026-10-25
+
+- Read-only production inspection confirmed app 0.13.0, world-v14, serving revision
+  `12f7864be82cfa9bef15b658f0d2de6e225e94ed`, 49 retained runs and a 50-run admission cap.
+  Actual filesystem availability was 7,399,514,112 bytes; the service was idle with no active
+  request. The five-member batch was rejected before creation, not crashing during inference.
+- First reproduced the exact owner HTTP error in a disposable database with 49 retained runs:
+  HTTP 400, “This batch needs 5 saved-run slots; 1 remain.” The new regression failed before
+  raising the operational cap from 50 to 500. No records, frames or worlds are pruned.
+- The corrected owner endpoint creates a paused, five-member v14 batch at 49 retained runs.
+  A queue lifecycle fixture advances all five members (without model inference), verifies 54
+  retained worlds, and compares every original world's row, scientific record and replay frame.
+  Research discovery/index expose the same 500-run limit.
+- New single-world/batch creation checks the actual filesystem before changing current worlds
+  or cancelling a pending queue. Low/unknown-space tests verify both remain unchanged.
+  Existing per-step storage checks remain. The cap does not provision disk or reserve future bytes.
+- `npm test`: 221/221 passed. `npm run check` and `git diff --check` passed.
+- `npm run check:ui`: passed desktop 1440×1000 and phone 390×844, including real owner-form
+  batch creation with at least 49 retained worlds and checks that each old ID still exists.
+  Inspected `v14-capacity-desktop.png` and `v14-capacity-phone.png`: readable green batch-ready
+  feedback, dark theme, reachable Create/Play controls, no horizontal overflow. All existing
+  archive, guest commitment and overview browser scenarios also passed.
+- Updated stale owner setup copy describing v11. App release is 0.13.1; world rules remain v14.
+  No production data, inference state, credentials, queue or deployment changed during verification.
+  Deployment and owner Create/Play are still required; no new live v14 outcomes are claimed.
+
 # v0.13.0 sustainable commitments — 2026-10-25
 
 - Completed five distinct evidence-driven build/test/review/improve cycles, followed by a final

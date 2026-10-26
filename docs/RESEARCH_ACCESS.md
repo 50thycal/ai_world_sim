@@ -34,7 +34,7 @@ All endpoints return JSON with `Cache-Control: no-store`. Paths are relative to 
 | GET path | Evidence |
 | --- | --- |
 | `/api/research` | Discovery, serving release/revision, current run, links and pagination cap |
-| `/api/research/runs` | All retained runs (maximum 50), conditions, metrics, progress, record/frame counts |
+| `/api/research/runs` | All retained runs (maximum 500), conditions, metrics, progress, record/frame counts |
 | `/api/research/runs/RUN_ID` | Full saved world, request ledger, input coverage, evidence watermarks and limits |
 | `/api/research/runs/RUN_ID/records` | Permanent requests, decisions, failures, rounds, dialogue and physical outcomes |
 | `/api/research/runs/RUN_ID/diagnostics` | Retained telemetry explicitly correlated to that run |
@@ -109,7 +109,9 @@ silently discarded or replaced. Pausing and restarts stop the queue; Play explic
 The queue cursor and each new world's first frame commit in one SQLite transaction. A new owner-created
 batch cancels the old pending queue but retains all its started runs. Creation checks all necessary
 slots against the retained-world limit. App v0.6.1 raises this limit from 20 to 50 without deleting
-evidence or starting extra calls; discovery and the run index expose `savedRunLimit`. No background
+evidence or starting extra calls; discovery and the run index expose `savedRunLimit`. App v0.13.1
+raises the operational cap to 500 after the 49-run installation could no longer admit a five-run
+batch, and checks actual filesystem headroom before creating worlds/batches. No background
 deletion or archive is performed.
 
 Each village starts from the same initial physical conditions with fresh IDs/memories. This tests

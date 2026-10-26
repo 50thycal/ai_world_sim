@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { createHmac } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../src/server.js';
@@ -12,7 +13,7 @@ test('HTTP owner claim, CSRF, read-only spectators, exports and restart persiste
   const base=`http://127.0.0.1:${app.server.address().port}`;
   const post=(p,b,cookie,origin)=>fetch(base+p,{method:'POST',headers:{'Content-Type':'application/json',...(cookie?{cookie}:{}),...(origin?{origin}:{})},body:JSON.stringify(b)});
   try{
-    const health=await fetch(base+'/health');assert.equal(health.status,200);assert.equal((await health.json()).version,'0.13.0');
+    const health=await fetch(base+'/health');assert.equal(health.status,200);assert.equal((await health.json()).version,'0.13.1');
     assert.equal((await post('/api/admin/run',{})).status,401);
     assert.equal((await fetch(base+'/api/admin/status')).status,401);
     assert.equal((await fetch(base+'/api/admin/diagnostics')).status,401);
@@ -25,7 +26,7 @@ test('HTTP owner claim, CSRF, read-only spectators, exports and restart persiste
     assert.equal((await post('/api/claim',{token:'test-owner-capability'})).status,403);
     assert.equal((await post('/api/admin/step',{},cookie,'https://evil.invalid')).status,403);
     assert.equal((await post('/api/admin/step',{},cookie)).status,200);
-    const state=await (await fetch(base+'/api/state')).json();assert.equal(state.world.agents.length,6);assert.equal(state.world.tick,1);assert.equal(state.world.mode,'demo');assert.equal(state.appVersion,'0.13.0');assert.equal(state.world.version,'world-v4');
+    const state=await (await fetch(base+'/api/state')).json();assert.equal(state.world.agents.length,6);assert.equal(state.world.tick,1);assert.equal(state.world.mode,'demo');assert.equal(state.appVersion,'0.13.1');assert.equal(state.world.version,'world-v4');
     const exported=await (await fetch(base+'/api/admin/export',{headers:{cookie}})).json();assert.equal(exported.format,'ai-world-run-v1');assert.ok(!JSON.stringify(exported).includes('signingKey'));
     const frames=await (await fetch(base+'/api/frames')).json();assert.equal(frames.length,1);
     assert.equal((await (await fetch(base+'/api/frame/'+frames[0].id)).json()).world.tick,1);
@@ -62,4 +63,33 @@ test('HTTP owner claim, CSRF, read-only spectators, exports and restart persiste
     process.env.OWNER_SETUP_TOKEN='rotated-test-key';base=await open();assert.equal(app.store.world.id,id);
     assert.equal((await claim(base,'initial-test-key')).status,403);assert.equal((await claim(base,'rotated-test-key')).status,200);
   } finally {if(app)await app.close();rmSync(dir,{recursive:true,force:true});delete process.env.OWNER_SETUP_TOKEN;}
+});
+
+test('v14 owner batch fits with 49 retained runs, preserves evidence and all five members', async () => {
+  const dir=mkdtempSync(join(tmpdir(),'world-capacity-'));
+  const app=createApp({dataDir:dir,codex:{stop(){},status:()=>({})},intervalMs:100000});
+  await new Promise(r=>app.server.listen(0,'127.0.0.1',r));
+  const base=`http://127.0.0.1:${app.server.address().port}`;
+  try {
+    while(app.store.db.prepare('SELECT count(*) n FROM worlds').get().n<49)app.store.reset('demo',null,{});
+    app.store.save([{kind:'capacity_evidence',tick:0,text:'Keep this exact record.'}],true);
+    const originals=app.store.db.prepare('SELECT * FROM worlds ORDER BY id').all();
+    const records=app.store.db.prepare('SELECT * FROM records ORDER BY id').all();
+    const frames=app.store.db.prepare('SELECT * FROM frames ORDER BY id').all();
+    const owner=JSON.parse(readFileSync(join(dir,'owner.json'),'utf8')),expiry=String(Date.now()+3600000);
+    const cookie=`village_owner=${expiry}.${createHmac('sha256',owner.signingKey).update(expiry).digest('hex')}`;
+    const response=await fetch(base+'/api/admin/new',{method:'POST',headers:{'Content-Type':'application/json',cookie},body:JSON.stringify({mode:'demo',adaptive:true})});
+    const state=await response.json();assert.equal(response.status,200,JSON.stringify(state));
+    assert.equal(state.world.version,'world-v14');assert.equal(state.batch.count,5);assert.equal(state.world.running,false);
+    app.batches.play();
+    // Admission/queue lifecycle only: mark fixtures complete without simulating model behavior.
+    while(app.batches.batch.status==='running'){
+      app.store.world.tick=app.store.world.maxTicks;app.store.world.running=false;app.store.save([],true);app.batches.advance();
+    }
+    assert.equal(app.batches.report().completedRuns,5);assert.equal(app.store.db.prepare('SELECT count(*) n FROM worlds').get().n,54);
+    for(const row of originals)assert.deepEqual(app.store.db.prepare('SELECT * FROM worlds WHERE id=?').get(row.id),row);
+    assert.deepEqual(app.store.db.prepare('SELECT * FROM records ORDER BY id LIMIT ?').all(records.length),records);
+    assert.deepEqual(app.store.db.prepare('SELECT * FROM frames ORDER BY id LIMIT ?').all(frames.length),frames);
+    const index=await(await fetch(base+'/api/research/runs')).json();assert.equal(index.savedRunLimit,500);assert.equal(index.runs.length,54);
+  } finally {await app.close();rmSync(dir,{recursive:true,force:true});}
 });
